@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Site;
+use App\Models\SiteAlarm;
 use App\Models\SiteBreakdown;
 use App\Models\SiteStat;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -36,6 +37,10 @@ class RecordSiteHit implements ShouldQueue
 
         self::bump($this->siteId, $this->day, 'views');
         self::breakdowns($this->siteId, $this->dims, 'views');
+
+        if ($site = Site::query()->find($this->siteId)) {
+            SiteAlarm::checkFor($site, [SiteAlarm::VIEWS]);
+        }
     }
 
     /**

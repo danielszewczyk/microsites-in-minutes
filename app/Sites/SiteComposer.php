@@ -5,6 +5,7 @@ namespace App\Sites;
 use App\Models\BuildEvent;
 use App\Models\Owner;
 use App\Models\Site;
+use App\Models\SiteAlarm;
 use App\Sites\Copywriter\Copywriter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -62,6 +63,14 @@ class SiteComposer
         ]);
 
         $build = $this->meter($owner, $site, BuildEvent::KIND_CREATE, $start);
+
+        // A default alarm, enabled: email the owner at 100 views.
+        $site->alarms()->create([
+            'metric' => SiteAlarm::VIEWS,
+            'threshold' => 100,
+            'email' => $owner->email,
+            'enabled' => true,
+        ]);
 
         return ['site' => $site, 'token' => $token, 'build' => $build];
     }
@@ -153,6 +162,8 @@ class SiteComposer
             'custom_domain' => $this->str($input['custom_domain'] ?? '', 120),
             'verify_emails' => (bool) ($input['verify_emails'] ?? false),
             'verify_phones' => (bool) ($input['verify_phones'] ?? false),
+            'require_confirmation' => (bool) ($input['require_confirmation'] ?? false),
+            'webhook_url' => $this->str($input['webhook_url'] ?? '', 300),
         ];
 
         if ($type === Site::TYPE_EVENT) {
@@ -203,6 +214,8 @@ class SiteComposer
             'custom_domain' => $owner->can('custom_domain') ? ($inputs['custom_domain'] ?: null) : null,
             'verify_emails' => (bool) ($inputs['verify_emails'] ?? false),
             'verify_phones' => (bool) ($inputs['verify_phones'] ?? false),
+            'require_confirmation' => (bool) ($inputs['require_confirmation'] ?? false),
+            'webhook_url' => ($inputs['webhook_url'] ?? '') ?: null,
         ];
     }
 

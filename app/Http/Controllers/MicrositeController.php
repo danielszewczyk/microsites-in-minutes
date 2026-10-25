@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ForwardEntry;
 use App\Jobs\RecordSiteHit;
 use App\Jobs\VerifyEntryEmail;
 use App\Jobs\VerifyEntryPhone;
 use App\Models\Site;
+use App\Models\SiteAlarm;
 use App\Models\SiteAsset;
 use App\Models\SiteEntry;
 use App\Support\QrCode;
@@ -16,6 +18,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 /**
@@ -87,6 +91,27 @@ class MicrositeController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * A minimal, frameable form-only page for embedding the entry form on
+     * another site. It posts to the same entry endpoint. Explicitly frameable.
+     */
+    public function embed(string $slug): Response
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        $html = view('microsite.embed', [
+            'content' => $site->content,
+            'accent' => $site->accent(),
+            'client' => ['enter' => route('microsite.enter', $site->slug, absolute: true)],
+        ])->render();
+
+        return response($html)->withHeaders([
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Content-Security-Policy' => 'frame-ancestors *',
+            'Cache-Control' => 'public, max-age=300',
+        ]);
+    }
+
     public function rules(string $slug): View
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
@@ -150,6 +175,11 @@ class MicrositeController extends Controller
 
         $dims = TrafficSource::fromInput($request);
 
+        // The confirmation add-on (double opt-in): hold the entry unconfirmed
+        // behind an emailed link so only authenticated leads count.
+        $needsConfirmation = ($site->settings['require_confirmation'] ?? false) && filled($validated['email'] ?? null);
+        $confirmToken = $needsConfirmation ? Str::random(40) : null;
+
         $entry = SiteEntry::query()->create([
             'site_id' => $site->id,
             'name' => $validated['name'],
@@ -164,6 +194,8 @@ class MicrositeController extends Controller
             'source' => $dims['source'],
             'campaign' => $dims['campaign'],
             'device' => $dims['device'],
+            'confirm_token' => $confirmToken,
+            'confirmed_at' => $needsConfirmation ? null : now(),
         ]);
 
         $site->increment('entry_count');
@@ -171,6 +203,8 @@ class MicrositeController extends Controller
         $day = Carbon::today()->toDateString();
         RecordSiteHit::bump($site->id, $day, 'entries');
         RecordSiteHit::breakdowns($site->id, $dims, 'entries');
+
+        SiteAlarm::checkFor($site->refresh(), [SiteAlarm::ENTRIES]);
 
         // Verification add-ons, off the request path, when the owner opted in.
         if (($site->settings['verify_emails'] ?? false) && filled($entry->email)) {
@@ -181,7 +215,58 @@ class MicrositeController extends Controller
             VerifyEntryPhone::dispatch($entry->id);
         }
 
+        if (filled($site->settings['webhook_url'] ?? null)) {
+            ForwardEntry::dispatch($entry->id);
+        }
+
+        if ($needsConfirmation) {
+            $this->sendConfirmation($site, $entry, $confirmToken);
+
+            return response()->json(['ok' => true, 'message' => 'Almost there — check your email and click the link to confirm your entry.']);
+        }
+
         return response()->json(['ok' => true, 'message' => $successMessage]);
+    }
+
+    /**
+     * Confirm an entry from the emailed double-opt-in link.
+     */
+    public function confirm(string $slug, string $token): View
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        $entry = $site->entries()->where('confirm_token', $token)->first();
+
+        if ($entry !== null && $entry->confirmed_at === null) {
+            $entry->update(['confirmed_at' => now(), 'confirm_token' => null]);
+        }
+
+        return view('microsite.confirmed', [
+            'site' => $site,
+            'accent' => $site->accent(),
+            'confirmed' => $entry !== null,
+        ]);
+    }
+
+    /**
+     * Email the double-opt-in confirmation link. Uses the configured mailer
+     * (log locally); failures never block the entry.
+     */
+    protected function sendConfirmation(Site $site, SiteEntry $entry, string $token): void
+    {
+        $url = route('microsite.confirm', [$site->slug, $token], absolute: true);
+        $name = $site->inputs['business_name'] ?? 'your entry';
+
+        try {
+            Mail::raw(
+                "Thanks for entering {$name}.\n\nPlease confirm your entry by opening this link:\n{$url}\n\nIf this wasn't you, just ignore this email.",
+                function ($message) use ($entry, $name): void {
+                    $message->to($entry->email)->subject("Confirm your entry — {$name}");
+                },
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Confirmation email failed', ['entry' => $entry->id, 'error' => $e->getMessage()]);
+        }
     }
 
     /**

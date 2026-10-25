@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AlarmController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\MicrositeController;
 use App\Http\Controllers\SeoController;
@@ -49,6 +50,15 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
     Route::get('/rules', [MicrositeController::class, 'rules'])
         ->middleware('throttle:60,1,microsite-rules')
         ->name('microsite.rules');
+
+    Route::get('/embed', [MicrositeController::class, 'embed'])
+        ->middleware('throttle:90,1,microsite-embed')
+        ->name('microsite.embed');
+
+    Route::get('/confirm/{token}', [MicrositeController::class, 'confirm'])
+        ->where('token', '[A-Za-z0-9]{1,64}')
+        ->middleware('throttle:30,1,microsite-confirm')
+        ->name('microsite.confirm');
 
     Route::post('/enter', [MicrositeController::class, 'enter'])
         ->middleware('throttle:5,1,microsite-enter')
@@ -110,4 +120,12 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:30,1,link-store')->name('microsite.links.store');
     Route::post('/links/{link}/delete', [ShortLinkController::class, 'destroy'])
         ->middleware('throttle:30,1,link-delete')->name('microsite.links.destroy');
+
+    /*
+     * Threshold alarms (views / entries / storage).
+     */
+    Route::post('/alarms', [AlarmController::class, 'store'])
+        ->middleware('throttle:30,1,alarm-store')->name('microsite.alarms.store');
+    Route::post('/alarms/{alarm}/delete', [AlarmController::class, 'destroy'])
+        ->middleware('throttle:30,1,alarm-delete')->name('microsite.alarms.destroy');
 });

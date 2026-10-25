@@ -50,6 +50,8 @@ class SiteBuilderRequest extends FormRequest
             'remove_branding' => ['boolean'],
             'verify_emails' => ['boolean'],
             'verify_phones' => ['boolean'],
+            'require_confirmation' => ['boolean'],
+            'webhook_url' => ['nullable', 'url', 'max:300'],
             'custom_domain' => ['nullable', 'string', 'max:120'],
 
             'prize' => ['nullable', 'required_if:type,'.Site::TYPE_SWEEPSTAKES, 'string', 'max:300'],

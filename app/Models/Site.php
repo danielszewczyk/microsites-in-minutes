@@ -141,6 +141,14 @@ class Site extends Model
         return $this->hasMany(ShortLink::class);
     }
 
+    /**
+     * @return HasMany<SiteAlarm, $this>
+     */
+    public function alarms(): HasMany
+    {
+        return $this->hasMany(SiteAlarm::class);
+    }
+
     public function assetFolder(): string
     {
         return 'sites/'.$this->slug;

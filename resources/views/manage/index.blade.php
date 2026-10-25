@@ -363,6 +363,43 @@
             @endif
         </div>
 
+        <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Alarms</h2>
+            <p class="muted" style="margin-top:0">Get an email when this site crosses a threshold.</p>
+            @foreach ($alarms as $alarm)
+                <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0">
+                    <span>At <strong>{{ $alarm->label() }}</strong> → email {{ $alarm->email }}
+                        @if ($alarm->triggered_at)<span class="muted" style="font-size:0.8rem">· triggered {{ $alarm->triggered_at->diffForHumans() }}</span>@endif
+                    </span>
+                    <form method="post" action="{{ route('microsite.alarms.destroy', [$site->slug, $alarm]) }}">@csrf<button class="rm" type="submit">Delete</button></form>
+                </div>
+            @endforeach
+            <form method="post" action="{{ route('microsite.alarms.store', $site->slug) }}" style="display:flex;gap:8px;align-items:end;margin-top:12px;flex-wrap:wrap">
+                @csrf
+                <div><label style="font-size:0.85rem">When</label><select name="metric" style="width:auto"><option value="views">views</option><option value="entries">entries</option><option value="storage">storage (MB)</option></select></div>
+                <div><label style="font-size:0.85rem">reaches</label><input type="number" name="threshold" min="1" value="100" style="width:120px"></div>
+                <button class="btn" type="submit">Add alarm</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Embed the form</h2>
+            <p class="muted" style="margin-top:0">Drop your entry form onto any website.</p>
+            <textarea id="embed-code" readonly style="font-family:ui-monospace,monospace;font-size:0.8rem;min-height:70px">&lt;iframe src="{{ route('microsite.embed', $site->slug, absolute: true) }}" width="100%" height="520" style="border:0;max-width:440px" title="Sign up"&gt;&lt;/iframe&gt;</textarea>
+            <button type="button" class="btn" id="embed-copy" style="margin-top:8px;padding:9px 16px">Copy</button>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Import API</h2>
+            <p class="muted" style="margin-top:0">Push entries in programmatically (one, or an <code>entries</code> array).</p>
+            <pre style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">POST {{ route('api.entries.store', $site->slug, absolute: true) }}
+Authorization: Bearer {{ $manageToken ? $manageToken : 'YOUR_MANAGE_TOKEN' }}
+Content-Type: application/json
+
+{"name":"Jane Doe","email":"jane@example.com"}</pre>
+            <p class="muted" style="font-size:0.8rem;margin:0">The bearer token is your private manage token — keep it secret.</p>
+        </div>
+
         @if ($entries->isNotEmpty())
             <div class="card ok">
                 <h2 style="margin-top:0;font-size:1.2rem">Turn these leads into customers</h2>
@@ -461,10 +498,23 @@
                         <input type="checkbox" name="verify_emails" value="1" style="width:auto" {{ ($inputs['verify_emails'] ?? false) ? 'checked' : '' }}>
                         Verify entry <strong>emails</strong> for deliverability (Bouncer){{ config('services.bouncer.key') ? '' : ' — needs a Bouncer key' }}
                     </label>
-                    <label class="muted" style="font-weight:400;display:block">
+                    <label class="muted" style="font-weight:400;display:block;margin-bottom:8px">
                         <input type="checkbox" name="verify_phones" value="1" style="width:auto" {{ ($inputs['verify_phones'] ?? false) ? 'checked' : '' }}>
                         Verify entry <strong>phone numbers</strong> (SMS/line lookup) — wired at launch
                     </label>
+                    <label class="muted" style="font-weight:400;display:block">
+                        <input type="checkbox" name="require_confirmation" value="1" style="width:auto" {{ ($inputs['require_confirmation'] ?? false) ? 'checked' : '' }}>
+                        Require <strong>confirmation</strong> — entrants click an emailed link to confirm (double opt-in)
+                    </label>
+                </fieldset>
+
+                <fieldset style="margin-top:18px">
+                    <legend>Integrations</legend>
+                    <div class="field">
+                        <label for="webhook_url">Webhook URL <span class="hint" style="font-weight:400;color:var(--muted)">— POST each entry here</span></label>
+                        <input type="url" id="webhook_url" name="webhook_url" maxlength="300" value="{{ old('webhook_url', $inputs['webhook_url'] ?? '') }}" placeholder="https://hooks.zapier.com/...">
+                    </div>
+                    <p class="muted" style="font-size:0.8rem;margin:0">Connect to Google Sheets, Salesforce, Mailchimp and 6,000+ apps via a Zapier or Make webhook. Native integrations coming soon.</p>
                 </fieldset>
 
                 <div class="row" style="margin-top:18px">
@@ -505,6 +555,14 @@
             document.getElementById('utm-copy')?.addEventListener('click', async () => {
                 try { await navigator.clipboard.writeText(preview.value); } catch (e) { preview.select(); document.execCommand('copy'); }
                 const b = document.getElementById('utm-copy');
+                b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
+            });
+
+            /* Copy the embed snippet. */
+            document.getElementById('embed-copy')?.addEventListener('click', async () => {
+                const code = document.getElementById('embed-code');
+                try { await navigator.clipboard.writeText(code.value); } catch (e) { code.select(); document.execCommand('copy'); }
+                const b = document.getElementById('embed-copy');
                 b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
             });
 

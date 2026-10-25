@@ -60,9 +60,11 @@ class SiteManageController extends Controller
                 'host' => ($d = $site->domain()) && $d->isActive() ? $d->domain : parse_url($site->url(), PHP_URL_HOST),
             ],
             'links' => $site->shortLinks()->latest()->get(),
+            'alarms' => $site->alarms()->get(),
             'assets' => $site->assets()->get()->keyBy('slot'),
             'uploadQr' => SiteAssetController::qrFor($site, $token),
             'uploadUrl' => route('microsite.upload', $site->slug).'?t='.$token,
+            'manageToken' => $token,
         ]);
     }
 
@@ -92,6 +94,8 @@ class SiteManageController extends Controller
             'remove_branding' => ['boolean'],
             'verify_emails' => ['boolean'],
             'verify_phones' => ['boolean'],
+            'require_confirmation' => ['boolean'],
+            'webhook_url' => ['nullable', 'url', 'max:300'],
             'custom_domain' => ['nullable', 'string', 'max:120'],
             'prize' => ['nullable', 'required_if:type,'.SiteModel::TYPE_SWEEPSTAKES, 'string', 'max:300'],
             'prize_value' => ['nullable', 'string', 'max:60'],

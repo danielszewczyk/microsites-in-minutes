@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ManagesSite;
 use App\Models\Site;
+use App\Models\SiteAlarm;
 use App\Models\SiteAsset;
 use App\Support\BannerImage;
 use App\Support\QrCode;
@@ -189,6 +190,8 @@ class SiteAssetController extends Controller
         }
 
         $site->unsetRelation('assets');
+
+        SiteAlarm::checkFor($site, [SiteAlarm::STORAGE]);
     }
 
     /**
