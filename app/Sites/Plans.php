@@ -37,4 +37,12 @@ class Plans
     {
         return $owner->sites()->count() < (int) $owner->plan()['max_sites'];
     }
+
+    /**
+     * Whether the launch promotion is on — every build free, no accrued cost.
+     */
+    public static function launchFree(): bool
+    {
+        return (bool) config('plans.launch_free');
+    }
 }

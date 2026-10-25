@@ -47,6 +47,11 @@ class BuildMeter
      */
     public static function costCents(Owner $owner, int $durationMs): int
     {
+        // During the launch promotion every build is free, whatever the time.
+        if (Plans::launchFree()) {
+            return 0;
+        }
+
         $freeMs = (int) $owner->plan()['free_build_minutes'] * 60_000;
         $before = (int) $owner->build_ms_total;
         $after = $before + $durationMs;

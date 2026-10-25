@@ -19,6 +19,16 @@ return [
 
     'default' => 'free',
 
+    /*
+     * Launch promotion. While true, every build is free: BuildMeter accrues no
+     * cost and the landing page shows a launch banner instead of charging. This
+     * is how the product goes live before payment collection is wired — no
+     * Stripe is integrated yet regardless, so nothing is ever charged; this
+     * only controls what the metering records and what the page says. Flip
+     * LAUNCH_FREE off once real billing exists to start metering cost again.
+     */
+    'launch_free' => (bool) env('LAUNCH_FREE', false),
+
     'billing_modes' => ['subscription', 'per_campaign', 'metered_build', 'metered_entries'],
 
     /*

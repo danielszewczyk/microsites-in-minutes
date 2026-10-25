@@ -57,6 +57,8 @@
         .plan { border: 1px solid var(--line); border-radius: 12px; padding: 16px; font-size: 0.9rem; }
         .plan b { display: block; font-size: 1.05rem; }
         .plan .price { color: var(--accent); font-weight: 700; }
+        .promo { display: inline-block; background: var(--accent); color: #fff; border-radius: 999px; padding: 8px 16px; font-size: 0.95rem; font-weight: 600; margin: 0 0 18px; }
+        .plan .was { text-decoration: line-through; color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 0.85rem; }
         .muted { color: var(--muted); }
         details.adv summary { cursor: pointer; font-weight: 600; margin-bottom: 12px; }
         fieldset { border: 1px dashed var(--line); border-radius: 12px; padding: 18px; margin: 0 0 20px; }
@@ -66,6 +68,9 @@
 <body>
     <header>
         <div class="wrap">
+            @if ($launchFree)
+                <p class="promo">🎉 Launch promotion — every site is <strong>free</strong> while we're in beta. No card required.</p>
+            @endif
             <h1>Microsites in Minutes</h1>
             <p class="sub">Describe what you need — a promo, an event, a giveaway, any one-page site. Get a polished, mobile-first page with a built-in form, published to a shareable link in seconds.</p>
         </div>
@@ -227,12 +232,22 @@
         </form>
 
         <div class="card">
-            <p class="muted" style="margin-top:0">Start free. Upgrade when you need a custom domain, no branding, analytics or more entries.</p>
+            <p class="muted" style="margin-top:0">
+                @if ($launchFree)
+                    Every plan is free during our launch promotion — build and publish as much as you like, no card required.
+                @else
+                    Start free. Upgrade when you need a custom domain, no branding, analytics or more entries.
+                @endif
+            </p>
             <div class="plans">
                 @foreach ($plans as $key => $plan)
                     <div class="plan">
                         <b>{{ $plan['name'] }}</b>
-                        <span class="price">{{ $plan['price_label'] }}</span>
+                        @if ($launchFree)
+                            <span class="price">Free<span class="was">{{ $plan['price_label'] }}</span></span>
+                        @else
+                            <span class="price">{{ $plan['price_label'] }}</span>
+                        @endif
                         <p class="muted">{{ $plan['max_sites'] }} site(s) · {{ number_format($plan['monthly_entries']) }} entries/mo
                             @if ($plan['custom_domain']) · custom domain @endif
                             @if ($plan['remove_branding']) · no branding @endif

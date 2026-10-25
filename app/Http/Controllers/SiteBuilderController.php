@@ -37,6 +37,7 @@ class SiteBuilderController extends Controller
             'types' => Site::TYPES,
             'illustrations' => HeroArt::ILLUSTRATIONS,
             'plans' => Plans::all(),
+            'launchFree' => Plans::launchFree(),
         ]);
     }
 
