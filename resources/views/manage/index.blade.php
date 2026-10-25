@@ -54,7 +54,7 @@
             <div class="card ok">
                 <p style="margin-top:0"><strong>Your site is live.</strong>
                     @isset(session('created')['build_ms'])
-                        <span class="muted">Built in {{ number_format(session('created')['build_ms'] / 1000, 1) }}s — ${{ number_format(session('created')['build_cents'] / 100, 2) }} (first build minute free).</span>
+                        <span class="muted">Built in {{ number_format(session('created')['build_ms'] / 1000, 1) }}s @if ($launchFree)— free (launch promotion).@else— ${{ number_format(session('created')['build_cents'] / 100, 2) }} (first build minute free).@endif</span>
                     @endisset
                 </p>
                 <p class="muted">Live link (share this):</p>
@@ -271,7 +271,7 @@
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
                 <h2 style="margin:0;font-size:1.2rem">Plan &amp; usage</h2>
-                <span class="muted">{{ $plan['name'] }} · balance <strong style="color:var(--accent)">${{ number_format($usage['balance_cents'] / 100, 2) }}</strong></span>
+                <span class="muted">{{ $plan['name'] }} · @if ($launchFree)<strong style="color:var(--accent)">Free during launch</strong>@else balance <strong style="color:var(--accent)">${{ number_format($usage['balance_cents'] / 100, 2) }}</strong>@endif</span>
             </div>
             @php($mb = fn ($b) => $b >= 1048576 ? number_format($b / 1048576, 1).' MB' : number_format(max(0, $b) / 1024, 0).' KB')
             @php($meter = function ($label, $pct, $detail, $over) {
@@ -282,10 +282,12 @@
             {!! $meter(
                 'Build minutes',
                 $usage['build']['pct'],
-                $usage['build']['over']
-                    ? 'free minute used — now metered'
-                    : number_format($usage['build']['free_remaining_ms'] / 1000, 1).'s of free build time left',
-                $usage['build']['over'],
+                $launchFree
+                    ? 'free during launch'
+                    : ($usage['build']['over']
+                        ? 'free minute used — now metered'
+                        : number_format($usage['build']['free_remaining_ms'] / 1000, 1).'s of free build time left'),
+                $launchFree ? false : $usage['build']['over'],
             ) !!}
             {!! $meter(
                 'Traffic (views)',
@@ -299,7 +301,11 @@
                 $mb($usage['storage']['used_bytes']).' / '.number_format($usage['storage']['allowance_bytes'] / 1048576).' MB'.($usage['storage']['over'] ? ' · over' : ''),
                 $usage['storage']['over'],
             ) !!}
-            <p class="muted" style="font-size:0.8rem;margin:10px 0 0">First build minute is free, then $0.50/min. Traffic and storage over the plan's allowance are billed per the plan. Billing is not live yet.</p>
+            @if ($launchFree)
+                <p class="muted" style="font-size:0.8rem;margin:10px 0 0">Free while we're in beta — you won't be charged for builds, traffic or storage during the launch promotion.</p>
+            @else
+                <p class="muted" style="font-size:0.8rem;margin:10px 0 0">First build minute is free, then $0.50/min. Traffic and storage over the plan's allowance are billed per the plan. Billing is not live yet.</p>
+            @endif
         </div>
 
         <div class="card">

@@ -7,6 +7,7 @@ use App\Models\Site;
 use App\Models\Site as SiteModel;
 use App\Models\SiteBreakdown;
 use App\Sites\HeroArt;
+use App\Sites\Plans;
 use App\Sites\SiteComposer;
 use App\Sites\UsageReport;
 use Illuminate\Contracts\View\View;
@@ -50,6 +51,7 @@ class SiteManageController extends Controller
             'entries' => $site->entries()->latest()->limit(100)->get(),
             'stats' => $this->recentStats($site),
             'plan' => $site->owner->plan(),
+            'launchFree' => Plans::launchFree(),
             'usage' => UsageReport::for($site->owner),
             'breakdowns' => $this->breakdowns($site),
             'domain' => $site->domain(),
