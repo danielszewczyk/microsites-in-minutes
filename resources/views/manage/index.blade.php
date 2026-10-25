@@ -223,7 +223,13 @@
                                 <td><a href="{{ $link->shortUrl() }}" target="_blank" rel="noopener">{{ $link->shortUrl() }}</a>@if ($link->label)<br><span class="muted" style="font-size:0.8rem">{{ $link->label }}</span>@endif</td>
                                 <td class="muted" style="font-size:0.82rem">{{ collect([$link->source, $link->medium, $link->campaign])->filter()->implode(' · ') ?: '—' }}</td>
                                 <td>{{ number_format($link->clicks) }}</td>
-                                <td><form method="post" action="{{ route('microsite.links.destroy', [$site->slug, $link]) }}">@csrf<button class="rm" type="submit">Delete</button></form></td>
+                                <td style="white-space:nowrap">
+                                    <details style="display:inline-block">
+                                        <summary style="cursor:pointer;color:var(--accent)">QR</summary>
+                                        <div style="width:120px;margin-top:6px">{!! \App\Support\QrCode::svg($link->shortUrl()) !!}</div>
+                                    </details>
+                                    <form method="post" action="{{ route('microsite.links.destroy', [$site->slug, $link]) }}" style="display:inline">@csrf<button class="rm" type="submit">Delete</button></form>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
