@@ -96,8 +96,10 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:30,1,domain-search')->name('microsite.domain.search');
     Route::post('/domain/buy', [DomainController::class, 'buy'])
         ->middleware('throttle:10,1,domain-buy')->name('microsite.domain.buy');
-    Route::post('/domain/activate', [DomainController::class, 'activate'])
-        ->middleware('throttle:20,1,domain-activate')->name('microsite.domain.activate');
+    Route::get('/domain/status', [DomainController::class, 'status'])
+        ->middleware('throttle:60,1,domain-status')->name('microsite.domain.status');
+    Route::post('/domain/retry', [DomainController::class, 'retry'])
+        ->middleware('throttle:20,1,domain-retry')->name('microsite.domain.retry');
     Route::post('/domain/remove', [DomainController::class, 'remove'])
         ->middleware('throttle:20,1,domain-remove')->name('microsite.domain.remove');
 

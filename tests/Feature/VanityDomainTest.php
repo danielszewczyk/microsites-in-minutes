@@ -31,7 +31,7 @@ class VanityDomainTest extends TestCase
         $this->assertSame(2_500, $search['price_cents']);
     }
 
-    public function test_buying_creates_a_pending_domain(): void
+    public function test_buying_registers_and_points_it_automatically(): void
     {
         $site = $this->paidSite();
 
@@ -39,9 +39,12 @@ class VanityDomainTest extends TestCase
             ->post(route('microsite.domain.buy', $site->slug), ['domain' => 'submityoursmile.com'])
             ->assertRedirect();
 
+        // The stub provisioner runs inline on buy and brings the domain live —
+        // no DNS step for the customer.
         $this->assertDatabaseHas('domains', [
-            'site_id' => $site->id, 'domain' => 'submityoursmile.com', 'status' => Domain::PENDING_DNS, 'price_cents' => 2_500,
+            'site_id' => $site->id, 'domain' => 'submityoursmile.com', 'status' => Domain::ACTIVE, 'price_cents' => 2_500,
         ]);
+        $this->assertNotNull($site->domain()->verified_at);
     }
 
     public function test_free_plan_cannot_buy_a_domain(): void
@@ -55,16 +58,27 @@ class VanityDomainTest extends TestCase
         $this->assertDatabaseCount('domains', 0);
     }
 
-    public function test_activate_makes_it_live(): void
+    public function test_retry_reprovisions_a_failed_domain(): void
     {
         $site = $this->paidSite();
-        $site->domains()->create(['owner_id' => $site->owner_id, 'domain' => 'submityoursmile.com', 'status' => Domain::PENDING_DNS, 'price_cents' => 2_500]);
+        $site->domains()->create(['owner_id' => $site->owner_id, 'domain' => 'submityoursmile.com', 'status' => Domain::FAILED, 'price_cents' => 2_500]);
 
         $this->withCookie($site->cookieName(), 'tok')
-            ->post(route('microsite.domain.activate', $site->slug))
+            ->post(route('microsite.domain.retry', $site->slug))
             ->assertRedirect();
 
         $this->assertSame(Domain::ACTIVE, $site->domains()->first()->status);
+    }
+
+    public function test_status_endpoint_reports_active(): void
+    {
+        $site = $this->paidSite();
+        $site->domains()->create(['owner_id' => $site->owner_id, 'domain' => 'submityoursmile.com', 'status' => Domain::ACTIVE, 'price_cents' => 2_500]);
+
+        $this->withCookie($site->cookieName(), 'tok')
+            ->get(route('microsite.domain.status', $site->slug))
+            ->assertOk()
+            ->assertJson(['active' => true, 'status' => Domain::ACTIVE]);
     }
 
     public function test_the_site_is_served_on_its_active_vanity_domain(): void

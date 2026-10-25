@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Domain extends Model
 {
+    public const string REGISTERING = 'registering';
+
     public const string PENDING_DNS = 'pending_dns';
 
     public const string ACTIVE = 'active';
@@ -61,6 +63,11 @@ class Domain extends Model
     public function isActive(): bool
     {
         return $this->status === self::ACTIVE;
+    }
+
+    public function isRegistering(): bool
+    {
+        return $this->status === self::REGISTERING;
     }
 
     /**

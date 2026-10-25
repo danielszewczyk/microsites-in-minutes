@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domains\DomainProvisioner;
+use App\Domains\StubProvisioner;
 use App\Sites\Copywriter\Copywriter;
 use App\Sites\Copywriter\TemplateCopywriter;
 use Illuminate\Support\Facades\URL;
@@ -20,6 +22,18 @@ class AppServiceProvider extends ServiceProvider
          * change how prompts become copy; nothing else in the app changes.
          */
         $this->app->bind(Copywriter::class, TemplateCopywriter::class);
+
+        /*
+         * How a bought vanity domain is registered and pointed at us. The stub
+         * simulates it (no registrar call, no charge); swap for a real registrar
+         * + Cloudflare provisioner at deploy.
+         */
+        $this->app->bind(
+            DomainProvisioner::class,
+            match (config('domains.provider', 'stub')) {
+                default => StubProvisioner::class,
+            },
+        );
     }
 
     /**

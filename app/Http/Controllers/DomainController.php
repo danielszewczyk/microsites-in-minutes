@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ManagesSite;
+use App\Jobs\ProvisionDomain;
 use App\Models\Domain;
 use App\Models\Site;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -59,36 +61,65 @@ class DomainController extends Controller
         // One vanity domain per site in the MVP: replace any existing one.
         $site->domains()->delete();
 
-        $site->domains()->create([
+        $record = $site->domains()->create([
             'owner_id' => $site->owner_id,
             'domain' => $domain,
-            'status' => Domain::PENDING_DNS,
+            'status' => Domain::REGISTERING,
             'price_cents' => (int) config('domains.price_cents'),
             'cost_cents' => (int) config('domains.cost_cents'),
             'expires_at' => now()->addYear(),
         ]);
 
-        $note = config('domains.stub')
-            ? 'Reserved (demo — no domain was registered and nothing was charged). '
-            : '';
+        // We register and point it — no DNS for the customer. The stub finishes
+        // at once; a real registrar + SSL runs on the queue and the page flips
+        // to live on its own.
+        $this->provision($record);
 
-        return back()->with('status', $note.'Point '.$domain.' at us with a CNAME to '
-            .config('domains.cname_target').', then activate it below.');
+        $note = config('domains.stub') ? ' (demo — nothing registered or charged)' : '';
+
+        return back()->with('status', "Setting up {$domain} — registering it and issuing SSL, no DNS needed{$note}.");
     }
 
     /**
-     * Mark the domain live. In production this is Cloudflare for SaaS confirming
-     * the hostname and issuing the certificate; here it is a stub step.
+     * Current setup status, for the dashboard to poll while a domain registers.
      */
-    public function activate(Request $request, string $slug): RedirectResponse
+    public function status(Request $request, string $slug): JsonResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        $domain = $site->domain();
+
+        return response()->json([
+            'status' => $domain?->status,
+            'active' => $domain?->isActive() ?? false,
+        ])->header('Cache-Control', 'no-store');
+    }
+
+    /**
+     * Retry provisioning a domain that failed.
+     */
+    public function retry(Request $request, string $slug): RedirectResponse
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
         $this->authorizeManage($request, $site);
 
         $domain = $site->domains()->firstOrFail();
-        $domain->update(['status' => Domain::ACTIVE, 'verified_at' => now()]);
+        $domain->update(['status' => Domain::REGISTERING]);
+        $this->provision($domain);
 
-        return back()->with('status', $domain->domain.' is live. Your site now serves on https://'.$domain->domain);
+        return back()->with('status', 'Retrying setup for '.$domain->domain.'.');
+    }
+
+    /**
+     * Kick off provisioning: inline for the stub so the demo completes now,
+     * queued for a real registrar so the request does not block.
+     */
+    protected function provision(Domain $domain): void
+    {
+        config('domains.stub')
+            ? ProvisionDomain::dispatchSync($domain->id)
+            : ProvisionDomain::dispatch($domain->id);
     }
 
     public function remove(Request $request, string $slug): RedirectResponse

@@ -90,17 +90,16 @@
             @if (! $plan['custom_domain'])
                 <p class="muted">Put this site on your own domain (e.g. submityoursmile.com) for <strong>$25/yr</strong> — domain registration included. Available on paid plans.</p>
             @elseif ($domain)
-                <p>Your domain: <strong>{{ $domain->domain }}</strong>
-                    @if ($domain->isActive())
-                        <span style="color:var(--accent)">· live</span> — <a href="https://{{ $domain->domain }}" target="_blank" rel="noopener">visit &nearr;</a>
-                    @else
-                        <span style="color:#b45309">· pending DNS</span>
-                    @endif
-                </p>
-                @unless ($domain->isActive())
-                    <p class="muted">Point it at us: add a <strong>CNAME</strong> from <code>{{ $domain->domain }}</code> to <code>{{ config('domains.cname_target') }}</code>, then activate.</p>
-                    <form method="post" action="{{ route('microsite.domain.activate', $site->slug) }}" style="display:inline">@csrf<button class="btn" type="submit">Activate</button></form>
-                @endunless
+                @if ($domain->isActive())
+                    <p>Your domain: <strong>{{ $domain->domain }}</strong> <span style="color:var(--accent)">· live</span> — <a href="https://{{ $domain->domain }}" target="_blank" rel="noopener">visit &nearr;</a></p>
+                @elseif ($domain->isRegistering())
+                    <p><strong>{{ $domain->domain }}</strong> <span style="color:#b45309">· setting up…</span></p>
+                    <p class="muted">We're registering it and issuing SSL — no DNS for you to configure. This usually takes about a minute; the page will update on its own.</p>
+                    <div id="dom-poll" data-url="{{ route('microsite.domain.status', $site->slug) }}"></div>
+                @else
+                    <p><strong>{{ $domain->domain }}</strong> <span style="color:#b91c1c">· setup failed</span></p>
+                    <form method="post" action="{{ route('microsite.domain.retry', $site->slug) }}" style="display:inline">@csrf<button class="btn" type="submit">Retry setup</button></form>
+                @endif
                 <form method="post" action="{{ route('microsite.domain.remove', $site->slug) }}" style="display:inline;margin-left:8px">@csrf<button class="rm" type="submit">Remove</button></form>
             @else
                 <p class="muted">Put this site on your own vanity domain for <strong>$25/yr</strong> — domain registration included (DJA charges $250). Search for one:</p>
@@ -119,7 +118,7 @@
                                 <input type="hidden" name="domain" value="{{ $ds['domain'] }}">
                                 <button class="btn" type="submit">Buy {{ $ds['domain'] }} — ${{ number_format($ds['price_cents'] / 100, 2) }}/yr</button>
                             </form>
-                            @if (config('domains.stub'))<p class="muted" style="font-size:0.8rem;margin-top:8px">Demo: no domain is registered and nothing is charged yet.</p>@endif
+                            <p class="muted" style="font-size:0.8rem;margin-top:8px">We register it and point it at your site automatically — no DNS to configure.@if (config('domains.stub')) <em>(Demo: nothing is registered or charged.)</em>@endif</p>
                         @else
                             <p class="muted">{{ $ds['domain'] }} is already taken. Try another.</p>
                         @endif
@@ -464,6 +463,18 @@
                 const b = document.getElementById('utm-copy');
                 b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
             });
+
+            /* While a domain is registering, poll and reload when it goes live. */
+            const dp = document.getElementById('dom-poll');
+            if (dp) {
+                setInterval(async () => {
+                    try {
+                        const r = await fetch(dp.dataset.url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+                        if (!r.ok) { return; }
+                        if ((await r.json()).active) { location.reload(); }
+                    } catch (e) {}
+                }, 3000);
+            }
         })();
     </script>
 </body>
