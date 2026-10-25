@@ -37,6 +37,132 @@ class OgImage
         return (string) ob_get_clean();
     }
 
+    /**
+     * The product's own 1200×630 share card for the landing page — a branded
+     * teal card with the wordmark, tagline and a "prompt → live site" hint.
+     * Distinct from forSite(), which draws a card for one generated microsite.
+     */
+    public static function forHome(): string
+    {
+        $canvas = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
+        self::drawHomeCard($canvas);
+
+        ob_start();
+        imagepng($canvas);
+
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * A square brand mark (apple-touch-icon): a full-bleed teal tile with the
+     * white dot. Full-bleed and opaque because iOS masks its own rounded
+     * corners and paints anything transparent black.
+     */
+    public static function homeIcon(int $size = 180): string
+    {
+        $canvas = imagecreatetruecolor($size, $size);
+
+        [$r, $g, $b] = self::rgb(Site::DEFAULT_ACCENT);
+        imagefill($canvas, 0, 0, imagecolorallocate($canvas, $r, $g, $b));
+        $dot = (int) ($size * 0.42);
+        imagefilledellipse($canvas, (int) ($size / 2), (int) ($size / 2), $dot, $dot, imagecolorallocate($canvas, 255, 255, 255));
+
+        ob_start();
+        imagepng($canvas);
+
+        return (string) ob_get_clean();
+    }
+
+    protected static function drawHomeCard(GdImage $canvas): void
+    {
+        // Vertical gradient from the brand accent down to a deeper teal.
+        [$tr, $tg, $tb] = self::rgb(Site::DEFAULT_ACCENT);
+        [$br, $bg, $bb] = [11, 74, 69];
+
+        for ($y = 0; $y < self::HEIGHT; $y++) {
+            $t = $y / self::HEIGHT;
+            $line = imagecolorallocate(
+                $canvas,
+                (int) round($tr + ($br - $tr) * $t),
+                (int) round($tg + ($bg - $tg) * $t),
+                (int) round($tb + ($bb - $tb) * $t),
+            );
+            imageline($canvas, 0, $y, self::WIDTH, $y, $line);
+        }
+
+        $white = imagecolorallocate($canvas, 255, 255, 255);
+        $soft = imagecolorallocate($canvas, 198, 231, 226);
+
+        $bold = resource_path('fonts/DejaVuSans-Bold.ttf');
+        $regular = resource_path('fonts/DejaVuSans.ttf');
+
+        $x = 90;
+
+        imagettftext($canvas, 22, 0, $x, 108, $soft, $bold, 'MICROSITESINMINUTES.COM');
+
+        $y = 232;
+        foreach (self::wrap($bold, 76, 'Microsites in Minutes', self::WIDTH - 180, 2) as $line) {
+            imagettftext($canvas, 76, 0, $x, $y, $white, $bold, $line);
+            $y += 98;
+        }
+
+        imagettftext($canvas, 30, 0, $x, $y + 16, $soft, $regular, 'A polished, mobile-first promo site in minutes.');
+
+        self::drawFlowPills($canvas, $x, self::HEIGHT - 92, $bold, $regular);
+    }
+
+    /**
+     * The "Your prompt → Live site" chip row that hints at how it works.
+     */
+    protected static function drawFlowPills(GdImage $canvas, int $x, int $cy, string $bold, string $regular): void
+    {
+        $white = imagecolorallocate($canvas, 255, 255, 255);
+        $ink = imagecolorallocate($canvas, 13, 74, 69);
+
+        $end = self::pill($canvas, $x, $cy, 'Your prompt', $regular, 24, $white, $ink);
+        imagettftext($canvas, 32, 0, $end + 24, $cy + 12, $white, $bold, '→');
+        self::pill($canvas, $end + 80, $cy, 'Live site in seconds', $regular, 24, $white, $ink);
+    }
+
+    /**
+     * A rounded "pill" sized to its text width, drawn centred on $cy. Every
+     * pill at a given size gets the same height (from a reference set of
+     * ascenders + descenders) so a row of them lines up, and the text is
+     * vertically centred within it. Returns the right-edge x so the next
+     * element can follow.
+     */
+    protected static function pill(GdImage $canvas, int $x, int $cy, string $text, string $font, int $size, int $bg, int $fg): int
+    {
+        $padX = 28;
+        $padY = 16;
+
+        $reference = imagettfbbox($size, 0, $font, 'Agjpqy');
+        $height = ($reference[1] - $reference[7]) + $padY * 2;
+
+        $box = imagettfbbox($size, 0, $font, $text);
+        $width = ($box[2] - $box[0]) + $padX * 2;
+        $top = $cy - (int) ($height / 2);
+
+        self::roundedRect($canvas, $x, $top, $x + $width, $top + $height, (int) ($height / 2), $bg);
+
+        // Baseline that centres this text's own ink on $cy.
+        $baseline = $cy - (int) (($box[1] + $box[7]) / 2);
+        imagettftext($canvas, $size, 0, $x + $padX - $box[0], $baseline, $fg, $font, $text);
+
+        return $x + $width;
+    }
+
+    protected static function roundedRect(GdImage $canvas, int $x1, int $y1, int $x2, int $y2, int $radius, int $color): void
+    {
+        $diameter = $radius * 2;
+        imagefilledrectangle($canvas, $x1 + $radius, $y1, $x2 - $radius, $y2, $color);
+        imagefilledrectangle($canvas, $x1, $y1 + $radius, $x2, $y2 - $radius, $color);
+        imagefilledellipse($canvas, $x1 + $radius, $y1 + $radius, $diameter, $diameter, $color);
+        imagefilledellipse($canvas, $x2 - $radius, $y1 + $radius, $diameter, $diameter, $color);
+        imagefilledellipse($canvas, $x1 + $radius, $y2 - $radius, $diameter, $diameter, $color);
+        imagefilledellipse($canvas, $x2 - $radius, $y2 - $radius, $diameter, $diameter, $color);
+    }
+
     protected static function drawBanner(GdImage $canvas, string $jpeg): void
     {
         $src = @imagecreatefromstring($jpeg);

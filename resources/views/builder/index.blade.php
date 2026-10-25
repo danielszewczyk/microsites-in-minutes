@@ -4,8 +4,27 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Microsites in Minutes — one-page sites for promos, events &amp; giveaways</title>
-    <meta name="description" content="Describe what you need and get a polished, mobile-first one-page site — a promo, an event with RSVP, a giveaway, or any landing page — published to a shareable link in seconds. A faster alternative to template builders.">
+    @php($ogDescription = 'Describe what you need and get a polished, mobile-first one-page site — a promo, an event with RSVP, a giveaway, or any landing page — published to a shareable link in seconds. A faster alternative to template builders.')
+    <meta name="description" content="{{ $ogDescription }}">
     <link rel="canonical" href="{{ route('home') }}">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Microsites in Minutes">
+    <meta property="og:title" content="Microsites in Minutes — a promo site in minutes">
+    <meta property="og:description" content="{{ $ogDescription }}">
+    <meta property="og:url" content="{{ route('home') }}">
+    <meta property="og:image" content="{{ route('home.og') }}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Microsites in Minutes — a promo site in minutes">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Microsites in Minutes — a promo site in minutes">
+    <meta name="twitter:description" content="{{ $ogDescription }}">
+    <meta name="twitter:image" content="{{ route('home.og') }}">
+
+    <link rel="icon" href="{{ route('home.favicon') }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ route('home.icon') }}">
     <style>
         :root { --accent: #0f766e; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --card: #fff; --line: #e7e5e4; }
         @media (prefers-color-scheme: dark) { :root { --ink: #fafaf9; --muted: #a8a29e; --paper: #1c1917; --card: #292524; --line: #44403c; } }

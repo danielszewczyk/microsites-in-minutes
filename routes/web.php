@@ -44,6 +44,12 @@ Route::middleware('auth')->group(function (): void {
  */
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
 Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots');
+Route::get('/og.png', [SeoController::class, 'homeOg'])
+    ->middleware('throttle:120,1,home-og')->name('home.og');
+Route::get('/favicon.svg', [SeoController::class, 'homeFavicon'])
+    ->middleware('throttle:120,1,home-favicon')->name('home.favicon');
+Route::get('/icon.png', [SeoController::class, 'homeIcon'])
+    ->middleware('throttle:120,1,home-icon')->name('home.icon');
 
 /*
  * Short links: a public redirect that counts the click and forwards to the site

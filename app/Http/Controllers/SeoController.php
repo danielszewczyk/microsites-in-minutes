@@ -67,6 +67,50 @@ class SeoController extends Controller
         ]);
     }
 
+    /**
+     * The landing page's own 1200×630 share card (og:image), cached hard — it
+     * only changes when the design version below is bumped.
+     */
+    public function homeOg(): Response
+    {
+        $png = Cache::remember('og:home:v1', now()->addDays(30), fn (): string => OgImage::forHome());
+
+        return response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'public, max-age=604800',
+        ]);
+    }
+
+    /**
+     * The product's brand favicon: a teal rounded tile with a white dot.
+     */
+    public function homeFavicon(): Response
+    {
+        $accent = Site::DEFAULT_ACCENT;
+
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+            .'<rect width="32" height="32" rx="7" fill="'.$accent.'"/>'
+            .'<circle cx="16" cy="16" r="6" fill="#ffffff"/></svg>';
+
+        return response($svg, 200, [
+            'Content-Type' => 'image/svg+xml',
+            'Cache-Control' => 'public, max-age=604800',
+        ]);
+    }
+
+    /**
+     * The apple-touch-icon: the same brand mark as a 180×180 PNG.
+     */
+    public function homeIcon(): Response
+    {
+        $png = Cache::remember('icon:home:v1', now()->addDays(30), fn (): string => OgImage::homeIcon());
+
+        return response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'public, max-age=604800',
+        ]);
+    }
+
     public function favicon(string $slug): Response|StreamedResponse
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
