@@ -84,6 +84,29 @@
         </div>
 
         <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Where it's coming from</h2>
+            <p class="muted" style="margin-top:0">Views, entries and conversion by source — counted on our side, no cookies or consent banner.</p>
+            @php($reportTable = function ($label, $rows) {
+                if (empty($rows)) {
+                    return '<p class="muted">No '.$label.' data yet.</p>';
+                }
+                $html = '<table><thead><tr><th>'.$label.'</th><th>Views</th><th>Entries</th><th>Conv.</th></tr></thead><tbody>';
+                foreach ($rows as $r) {
+                    $html .= '<tr><td>'.e($r['key']).'</td><td>'.number_format($r['views']).'</td><td>'.number_format($r['entries']).'</td><td>'.number_format($r['conv'], 1).'%</td></tr>';
+                }
+                return $html.'</tbody></table>';
+            })
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
+                <div>{!! $reportTable('Source', $breakdowns['source']) !!}</div>
+                <div>{!! $reportTable('Device', $breakdowns['device']) !!}</div>
+            </div>
+            @if (!empty($breakdowns['campaign']))
+                <div style="margin-top:18px">{!! $reportTable('Campaign', $breakdowns['campaign']) !!}</div>
+            @endif
+            <p class="muted" style="font-size:0.8rem;margin:12px 0 0">Tag your links with <code>?utm_source=…&amp;utm_campaign=…</code> to see each channel here. Export includes the source per entry.</p>
+        </div>
+
+        <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
                 <h2 style="margin:0;font-size:1.2rem">Plan &amp; usage</h2>
                 <span class="muted">{{ $plan['name'] }} · balance <strong style="color:var(--accent)">${{ number_format($usage['balance_cents'] / 100, 2) }}</strong></span>

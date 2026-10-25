@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ManagesSite;
 use App\Models\Site;
 use App\Models\Site as SiteModel;
+use App\Models\SiteBreakdown;
 use App\Sites\HeroArt;
 use App\Sites\SiteComposer;
 use App\Sites\UsageReport;
@@ -50,6 +51,7 @@ class SiteManageController extends Controller
             'stats' => $this->recentStats($site),
             'plan' => $site->owner->plan(),
             'usage' => UsageReport::for($site->owner),
+            'breakdowns' => $this->breakdowns($site),
             'assets' => $site->assets()->get()->keyBy('slot'),
             'uploadQr' => SiteAssetController::qrFor($site, $token),
             'uploadUrl' => route('microsite.upload', $site->slug).'?t='.$token,
@@ -105,7 +107,7 @@ class SiteManageController extends Controller
 
         return response()->streamDownload(function () use ($site): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Phone', 'Message', 'Free entry (AMOE)']);
+            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Phone', 'Message', 'Source', 'Campaign', 'Device', 'Free entry (AMOE)']);
 
             $site->entries()->oldest()->chunk(500, function ($chunk) use ($out): void {
                 foreach ($chunk as $entry) {
@@ -115,6 +117,9 @@ class SiteManageController extends Controller
                         $entry->email,
                         $entry->phone,
                         $entry->message,
+                        $entry->source,
+                        $entry->campaign,
+                        $entry->device,
                         $entry->is_amoe ? 'yes' : 'no',
                     ]));
                 }
@@ -122,6 +127,36 @@ class SiteManageController extends Controller
 
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * The reporting breakdowns for a site: top values per dimension with views,
+     * entries and conversion. Cookieless, from our own counts.
+     *
+     * @return array<string, list<array{key: string, views: int, entries: int, conv: float}>>
+     */
+    protected function breakdowns(Site $site): array
+    {
+        $rows = $site->breakdowns()->get();
+
+        $top = fn (string $dimension): array => $rows
+            ->where('dimension', $dimension)
+            ->sortByDesc('views')
+            ->take(8)
+            ->map(fn ($row): array => [
+                'key' => $row->key,
+                'views' => $row->views,
+                'entries' => $row->entries,
+                'conv' => $row->views > 0 ? round($row->entries / $row->views * 100, 1) : 0.0,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'source' => $top(SiteBreakdown::SOURCE),
+            'campaign' => $top(SiteBreakdown::CAMPAIGN),
+            'device' => $top(SiteBreakdown::DEVICE),
+        ];
     }
 
     /**

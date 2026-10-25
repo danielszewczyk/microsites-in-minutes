@@ -7,6 +7,7 @@ use App\Models\Site;
 use App\Models\SiteAsset;
 use App\Models\SiteEntry;
 use App\Support\QrCode;
+use App\Support\TrafficSource;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class MicrositeController extends Controller
             fn (): string => view('microsite.show', $this->viewData($site))->render(),
         );
 
-        dispatch(RecordSiteHit::forToday($site->id))->afterResponse();
+        dispatch(RecordSiteHit::forToday($site->id, TrafficSource::fromRequest($request)))->afterResponse();
 
         return response($html)->withHeaders([
             'Content-Type' => 'text/html; charset=UTF-8',
@@ -117,6 +118,8 @@ class MicrositeController extends Controller
             ], 422);
         }
 
+        $dims = TrafficSource::fromInput($request);
+
         SiteEntry::query()->create([
             'site_id' => $site->id,
             'name' => $validated['name'],
@@ -125,10 +128,16 @@ class MicrositeController extends Controller
             'message' => $validated['message'] ?? null,
             'is_amoe' => false,
             'ip_hash' => hash('sha256', (string) $request->ip()),
+            'source' => $dims['source'],
+            'campaign' => $dims['campaign'],
+            'device' => $dims['device'],
         ]);
 
         $site->increment('entry_count');
-        RecordSiteHit::bump($site->id, Carbon::today()->toDateString(), 'entries');
+
+        $day = Carbon::today()->toDateString();
+        RecordSiteHit::bump($site->id, $day, 'entries');
+        RecordSiteHit::breakdowns($site->id, $dims, 'entries');
 
         return response()->json(['ok' => true, 'message' => $successMessage]);
     }

@@ -224,11 +224,16 @@
                 const button = form.querySelector('button');
                 button.disabled = true;
                 let res, body = {};
+                const payload = Object.fromEntries(new FormData(form));
+                const params = new URLSearchParams(location.search);
+                payload.utm_source = params.get('utm_source') || '';
+                payload.utm_campaign = params.get('utm_campaign') || '';
+                payload.referrer = document.referrer || '';
                 try {
                     res = await fetch(data.enter, {
                         method: 'POST',
                         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify(Object.fromEntries(new FormData(form))),
+                        body: JSON.stringify(payload),
                     });
                     body = await res.json().catch(() => ({}));
                 } catch (e) {

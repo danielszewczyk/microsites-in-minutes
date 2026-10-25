@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Site;
+use App\Models\SiteBreakdown;
 use App\Models\SiteStat;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\QueryException;
@@ -14,18 +15,27 @@ use Illuminate\Support\Carbon;
  * so that serving the (cached) page never blocks on a write — the pattern that
  * keeps published pages cheap and fast under load. Entries are counted inline
  * because they are rare and the owner wants them to be exact.
+ *
+ * It also rolls up the view into the reporting breakdowns (source, campaign,
+ * device) so the dashboard can show where traffic comes from.
+ *
+ * @param  array{source?: string, campaign?: ?string, device?: string}  $dims
  */
 class RecordSiteHit implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public int $siteId, public string $day) {}
+    /**
+     * @param  array<string, string|null>  $dims
+     */
+    public function __construct(public int $siteId, public string $day, public array $dims = []) {}
 
     public function handle(): void
     {
         Site::query()->whereKey($this->siteId)->increment('view_count');
 
         self::bump($this->siteId, $this->day, 'views');
+        self::breakdowns($this->siteId, $this->dims, 'views');
     }
 
     /**
@@ -54,8 +64,56 @@ class RecordSiteHit implements ShouldQueue
         }
     }
 
-    public static function forToday(int $siteId): self
+    /**
+     * Roll one hit into the source / campaign / device breakdowns.
+     *
+     * @param  array<string, string|null>  $dims
+     */
+    public static function breakdowns(int $siteId, array $dims, string $column): void
     {
-        return new self($siteId, Carbon::today()->toDateString());
+        $pairs = [
+            SiteBreakdown::SOURCE => $dims['source'] ?? null,
+            SiteBreakdown::CAMPAIGN => $dims['campaign'] ?? null,
+            SiteBreakdown::DEVICE => $dims['device'] ?? null,
+        ];
+
+        foreach ($pairs as $dimension => $key) {
+            if ($key === null || $key === '') {
+                continue;
+            }
+
+            self::bumpBreakdown($siteId, $dimension, (string) $key, $column);
+        }
+    }
+
+    protected static function bumpBreakdown(int $siteId, string $dimension, string $key, string $column): void
+    {
+        $affected = SiteBreakdown::query()
+            ->where('site_id', $siteId)->where('dimension', $dimension)->where('key', $key)
+            ->increment($column);
+
+        if ($affected === 0) {
+            try {
+                SiteBreakdown::query()->create([
+                    'site_id' => $siteId,
+                    'dimension' => $dimension,
+                    'key' => $key,
+                    'views' => $column === 'views' ? 1 : 0,
+                    'entries' => $column === 'entries' ? 1 : 0,
+                ]);
+            } catch (QueryException) {
+                SiteBreakdown::query()
+                    ->where('site_id', $siteId)->where('dimension', $dimension)->where('key', $key)
+                    ->increment($column);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, string|null>  $dims
+     */
+    public static function forToday(int $siteId, array $dims = []): self
+    {
+        return new self($siteId, Carbon::today()->toDateString(), $dims);
     }
 }

@@ -112,6 +112,14 @@ class Site extends Model
         return $this->assets->firstWhere('slot', $slot);
     }
 
+    /**
+     * @return HasMany<SiteBreakdown, $this>
+     */
+    public function breakdowns(): HasMany
+    {
+        return $this->hasMany(SiteBreakdown::class);
+    }
+
     public function assetFolder(): string
     {
         return 'sites/'.$this->slug;
