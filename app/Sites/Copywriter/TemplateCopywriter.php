@@ -86,7 +86,8 @@ class TemplateCopywriter implements Copywriter
     protected function sweepstakes(string $business, string $prompt, array $inputs): array
     {
         $prize = $this->firstFilled($inputs['prize'] ?? null, 'a great prize');
-        $prizeShort = $this->trim($prize, 48);
+        $prizePhrase = rtrim($prize, '. ');
+        $prizeShort = $this->trim($prizePhrase, 48);
         $start = $this->date($inputs['start_date'] ?? null) ?? Carbon::today();
         $end = $this->date($inputs['end_date'] ?? null) ?? $start->copy()->addDays(30);
         $sponsor = $this->firstFilled($inputs['sponsor'] ?? null, $business);
@@ -112,7 +113,7 @@ class TemplateCopywriter implements Copywriter
             ],
             'offer' => [
                 'heading' => 'The prize',
-                'body' => $prompt !== '' ? $prompt : "Enter for your chance to win {$prize}.",
+                'body' => $prompt !== '' ? $prompt : "Enter for your chance to win {$prizePhrase}.",
                 'bullets' => array_values(array_filter([
                     'Free to enter — no purchase necessary',
                     'Winner drawn on '.$end->format('F j, Y'),
@@ -121,10 +122,10 @@ class TemplateCopywriter implements Copywriter
             ],
             'about' => $prompt !== ''
                 ? $prompt
-                : "{$business} is giving away {$prize}. Enter below — it takes less than a minute.",
+                : "{$business} is giving away {$prizePhrase}. Enter below — it takes less than a minute.",
             'features' => [
                 ['title' => 'Quick to enter', 'text' => 'One short form and you are in — under a minute.'],
-                ['title' => 'A real prize', 'text' => $this->trim("You could win {$prize}.", 200)],
+                ['title' => 'What you could win', 'text' => $this->trim($prizePhrase, 200)],
                 ['title' => 'No purchase necessary', 'text' => 'Entry is always free. See the official rules for the free mail-in method.'],
             ],
             'cta' => [

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesSite;
 use App\Models\Site;
 use App\Models\Site as SiteModel;
 use App\Sites\HeroArt;
@@ -15,12 +16,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The owner's dashboard for one microsite: edit the prompt and regenerate in
- * place, change settings, and see and export entries and stats. Control is
- * proven by the manage token — held in a cookie, or passed once as ?t= on the
- * share link — not by a login.
+ * place, change settings, upload assets, and see and export entries and stats.
+ * Control is proven by the manage token — held in a cookie, or passed once as
+ * ?t= on the share link — not by a login.
  */
 class SiteManageController extends Controller
 {
+    use ManagesSite;
+
     public function manage(Request $request, string $slug): RedirectResponse|View
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
@@ -35,6 +38,9 @@ class SiteManageController extends Controller
 
         $this->authorizeManage($request, $site);
 
+        // The cookie holds the plain token; use it to build the phone-upload QR.
+        $token = (string) $request->cookie($site->cookieName());
+
         return view('manage.index', [
             'site' => $site,
             'inputs' => $site->inputs,
@@ -42,6 +48,9 @@ class SiteManageController extends Controller
             'entries' => $site->entries()->latest()->limit(100)->get(),
             'stats' => $this->recentStats($site),
             'plan' => $site->owner->plan(),
+            'assets' => $site->assets()->get()->keyBy('slot'),
+            'uploadQr' => SiteAssetController::qrFor($site, $token),
+            'uploadUrl' => route('microsite.upload', $site->slug).'?t='.$token,
         ]);
     }
 
@@ -94,14 +103,14 @@ class SiteManageController extends Controller
 
             $site->entries()->oldest()->chunk(500, function ($chunk) use ($out): void {
                 foreach ($chunk as $entry) {
-                    fputcsv($out, [
+                    fputcsv($out, array_map($this->csvSafe(...), [
                         $entry->created_at?->toDateTimeString(),
                         $entry->name,
                         $entry->email,
                         $entry->phone,
                         $entry->message,
                         $entry->is_amoe ? 'yes' : 'no',
-                    ]);
+                    ]));
                 }
             });
 
@@ -110,13 +119,15 @@ class SiteManageController extends Controller
     }
 
     /**
-     * Allow only a browser holding this site's manage token.
+     * Neutralise CSV formula injection: a cell that a spreadsheet would treat
+     * as a formula (leading = + - @, tab or CR) is prefixed with a quote so it
+     * is read as text.
      */
-    protected function authorizeManage(Request $request, Site $site): void
+    protected function csvSafe(?string $value): string
     {
-        $token = $request->cookie($site->cookieName()) ?? $request->query('t');
+        $value = (string) $value;
 
-        abort_unless($site->managedBy(is_string($token) ? $token : null), 403, 'This management link is not valid for this site.');
+        return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'".$value : $value;
     }
 
     /**

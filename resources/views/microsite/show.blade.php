@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="{{ $isDraft ? 'noindex, nofollow' : 'index, follow' }}">
     <title>{{ $content['meta']['title'] ?? $content['hero']['headline'] }}</title>
     <meta name="description" content="{{ $content['meta']['description'] ?? '' }}">
     <link rel="canonical" href="{{ $site->url() }}">
@@ -24,7 +24,9 @@
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); line-height: 1.6; }
         .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
         a { color: var(--accent); }
+        .banner img { display: block; width: 100%; height: auto; max-height: 440px; object-fit: cover; }
         header { padding: 88px 0 64px; border-bottom: 6px solid var(--accent); }
+        .banner + header { padding-top: 48px; }
         .kicker { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.8rem; font-weight: 700; color: var(--accent); margin: 0 0 14px; }
         h1 { font-size: clamp(2.1rem, 6vw, 3.6rem); line-height: 1.08; margin: 0 0 16px; letter-spacing: -0.02em; }
         .subhead { font-size: clamp(1.1rem, 2.6vw, 1.4rem); color: var(--muted); margin: 0 0 28px; max-width: 42ch; }
@@ -66,8 +68,25 @@
     </style>
 </head>
 <body>
+    @if ($isDraft)
+        <div style="background:#92400e;color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:0.9rem">
+            Draft preview — not live and not accepting entries. Visible only to people with this link.
+        </div>
+    @endif
+    @if ($banners['desktop'] || $banners['mobile'])
+        <div class="banner">
+            <picture>
+                @if ($banners['mobile'])
+                    <source media="(max-width: 759px)" srcset="{{ $banners['mobile'] }}">
+                @endif
+                <img src="{{ $banners['desktop'] ?? $banners['mobile'] }}" alt="{{ $content['hero']['headline'] }}">
+            </picture>
+        </div>
+    @endif
+
+    @php($showArt = $hero && ! $banners['desktop'] && ! $banners['mobile'])
     <header>
-        <div class="wrap hero{{ $hero ? ' has-art' : '' }}">
+        <div class="wrap hero{{ $showArt ? ' has-art' : '' }}">
             <div>
                 @if (!empty($content['hero']['kicker']))
                     <p class="kicker">{{ $content['hero']['kicker'] }}</p>
@@ -79,7 +98,7 @@
                     <p class="cta-note">{{ $content['cta']['note'] }}</p>
                 @endif
             </div>
-            @if ($hero)
+            @if ($showArt)
                 <div class="art">@include('microsite.art.'.$hero)</div>
             @endif
         </div>
@@ -130,7 +149,11 @@
                 <div class="msg ok" id="entry-ok" hidden></div>
                 <div class="msg err" id="entry-err" hidden></div>
 
-                <form class="entry" id="entry-form" method="post" action="{{ route('microsite.enter', $site->slug) }}">
+                @if (! $acceptsEntries)
+                    <p class="msg err">{{ $isDraft ? 'This is a draft preview — the form is disabled until it goes live.' : 'Entries are closed for this promotion.' }}</p>
+                @endif
+
+                <form class="entry" id="entry-form" method="post" action="{{ route('microsite.enter', $site->slug) }}" {{ $acceptsEntries ? '' : 'hidden' }}>
                     <div>
                         <label for="f-name">Your name</label>
                         <input type="text" id="f-name" name="name" maxlength="80" required autocomplete="name">
@@ -162,7 +185,8 @@
     <footer>
         <div class="wrap">
             @if ($site->isSweepstakes() && is_array($content['rules'] ?? null))
-                <p><a href="{{ route('microsite.rules', $site->slug) }}">Official rules, eligibility &amp; free entry</a> ·
+                <p><a href="{{ route('microsite.rules', $site->slug) }}">Official rules, eligibility &amp; free entry</a>
+                    @if ($rulesDocUrl) · <a href="{{ $rulesDocUrl }}">Official rules (document)</a>@endif ·
                     No purchase necessary. Open to {{ \Illuminate\Support\Str::limit($content['rules']['eligibility'], 90) }}</p>
             @endif
             @if ($showBranding)

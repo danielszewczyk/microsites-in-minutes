@@ -57,6 +57,7 @@ class HermanPromosSeeder extends Seeder
         return [
             'owner_email' => 'daniel@thelocalhostcompany.com',
             'owner_name' => 'Daniel Szewczyk',
+            'status' => 'draft',
             'business_name' => 'Beyond Dentistry',
             'type' => 'sweepstakes',
             'offer_headline' => 'Submit Your Smile',
@@ -91,28 +92,27 @@ class HermanPromosSeeder extends Seeder
         return [
             'owner_email' => 'daniel@thelocalhostcompany.com',
             'owner_name' => 'Daniel Szewczyk',
+            'status' => 'draft',
             'business_name' => 'Beyond Dentistry',
             'type' => 'sweepstakes',
             'offer_headline' => 'Submit Your Snore',
-            'cta_label' => 'Take the 60-second check',
+            'cta_label' => 'Enter the giveaway',
             'location' => 'Central Park South, New York',
             'contact_phone' => '(212) 582-3322',
             'accent_color' => '#4338ca',
             'hero_image' => 'leaf',
-            'prompt' => 'Snoring keeps more than you awake. Take our quick sleep-health questionnaire and enter to win '
-                .'a sleep-wellness kit from Beyond Dentistry on Central Park South. This is a wellness check, not a '
-                .'medical diagnosis — if something stands out, our team can help you book a consult. A snoring recording '
-                .'is welcome but entirely optional.',
-            'prize' => 'A sleep-wellness kit (smart sleep tracker and sleep-comfort products). Prize is products only — '
-                .'not a medical device, screening, diagnosis or treatment.',
+            'prompt' => 'Rest easier. Beyond Dentistry on Central Park South is giving away a sleep-comfort kit to one '
+                .'New York resident. Enter below — free to enter, no purchase necessary. This is a product giveaway '
+                .'only; it is not a medical screening, diagnosis or treatment.',
+            'prize' => 'A sleep-comfort kit (premium pillow, white-noise machine and sleep-comfort products). '
+                .'Prize is products only — not a medical device, screening, diagnosis or treatment.',
             'prize_value' => '$200',
             'sponsor' => 'Beyond Dentistry, [confirm full mailing address], New York, NY',
             'start_date' => '2026-11-03',
             'end_date' => '2026-11-28',
             'eligibility' => 'Legal U.S. residents of New York State who are 18 or older at the time of entry. '
                 .'Employees of Beyond Dentistry and their immediate families are not eligible. The prize is products '
-                .'only and is not sleep-apnea screening, diagnosis or treatment. Sleep apnea is diagnosed by a '
-                .'physician; nothing here is a diagnosis or a promise of treatment.',
+                .'only and is not sleep-apnea screening, diagnosis or treatment.',
             'amoe' => 'No purchase necessary. To enter for free without the form, hand-print your full name, address, '
                 .'email and phone on a 3x5 card and mail it to Beyond Dentistry, [confirm mailing address], New York, NY. '
                 .'One entry per card. Mail-in entries must be received by the end date.',

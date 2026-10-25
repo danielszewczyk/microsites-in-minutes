@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\RecordSiteHit;
 use App\Models\Site;
+use App\Models\SiteAsset;
 use App\Models\SiteEntry;
 use App\Support\QrCode;
 use Illuminate\Contracts\View\View;
@@ -87,12 +88,27 @@ class MicrositeController extends Controller
             return response()->json(['ok' => true, 'message' => $successMessage]);
         }
 
+        if (! $site->acceptsEntries()) {
+            $message = $site->isDraft()
+                ? 'This page is a draft and is not accepting entries yet.'
+                : 'This promotion is not currently accepting entries.';
+
+            return response()->json(['ok' => false, 'message' => $message], 422);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:80'],
             'email' => ['nullable', 'email', 'max:120'],
             'phone' => ['nullable', 'string', 'max:40'],
             'message' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        // One entry per person: a repeat with the same email is accepted
+        // politely but not stored or counted again.
+        if (filled($validated['email'] ?? null)
+            && $site->entries()->whereRaw('lower(email) = ?', [mb_strtolower($validated['email'])])->exists()) {
+            return response()->json(['ok' => true, 'message' => "You're already entered — good luck!"]);
+        }
 
         if (blank($validated['email'] ?? null) && blank($validated['phone'] ?? null)) {
             return response()->json([
@@ -118,6 +134,27 @@ class MicrositeController extends Controller
     }
 
     /**
+     * Banner image URLs (cache-busted by the asset's timestamp), or null.
+     *
+     * @return array{desktop: ?string, mobile: ?string}
+     */
+    protected function bannerUrls(Site $site): array
+    {
+        $url = function (string $slot) use ($site): ?string {
+            $asset = $site->asset($slot);
+
+            return $asset !== null
+                ? route('microsite.asset', [$site->slug, $slot], absolute: false).'?v='.$asset->updated_at?->getTimestamp()
+                : null;
+        };
+
+        return [
+            'desktop' => $url(SiteAsset::BANNER_DESKTOP),
+            'mobile' => $url(SiteAsset::BANNER_MOBILE),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function viewData(Site $site): array
@@ -131,6 +168,12 @@ class MicrositeController extends Controller
             'version' => $site->version(),
             'qr' => QrCode::svg($site->url()),
             'showBranding' => $site->showsBranding(),
+            'isDraft' => $site->isDraft(),
+            'acceptsEntries' => $site->acceptsEntries(),
+            'banners' => $this->bannerUrls($site),
+            'rulesDocUrl' => $site->asset(SiteAsset::RULES_DOC) !== null
+                ? route('microsite.asset', [$site->slug, SiteAsset::RULES_DOC], absolute: false)
+                : null,
             'client' => [
                 'version' => $site->version(),
                 'enter' => route('microsite.enter', $site->slug, absolute: false),

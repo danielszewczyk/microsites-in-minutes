@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\MicrositeController;
 use App\Http\Controllers\SeoController;
+use App\Http\Controllers\SiteAssetController;
 use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\SiteManageController;
 use Illuminate\Support\Facades\Route;
@@ -54,4 +55,18 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:30,1,microsite-regenerate')
         ->name('microsite.regenerate');
     Route::get('/manage/entries.csv', [SiteManageController::class, 'exportEntries'])->name('microsite.entries.export');
+
+    /*
+     * Phone handoff: upload banners, a copy deck and a rules doc from the phone.
+     */
+    Route::get('/upload', [SiteAssetController::class, 'form'])->name('microsite.upload');
+    Route::post('/upload', [SiteAssetController::class, 'upload'])
+        ->middleware('throttle:30,1,microsite-upload')
+        ->name('microsite.upload.store');
+    Route::post('/upload/{slot}/delete', [SiteAssetController::class, 'remove'])
+        ->middleware('throttle:30,1,microsite-upload-delete')
+        ->name('microsite.upload.remove');
+    Route::get('/asset/{slot}', [SiteAssetController::class, 'serve'])
+        ->middleware('throttle:120,1,microsite-asset')
+        ->name('microsite.asset');
 });

@@ -80,6 +80,28 @@
         </div>
 
         <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Upload from your phone</h2>
+            <p class="muted">Scan this with your phone to upload banners (desktop + mobile), a copy deck and a rules document straight from your camera roll. The QR carries your private key — don't share it.</p>
+            <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">
+                <div style="width:170px">{!! $uploadQr !!}</div>
+                <div style="flex:1;min-width:220px">
+                    <p style="margin:0 0 10px"><a href="{{ route('microsite.upload', $site->slug) }}">Open the upload page here &nearr;</a></p>
+                    <ul style="margin:0;padding-left:18px" class="muted">
+                        @foreach (\App\Models\SiteAsset::SLOTS as $slot => $spec)
+                            <li>{{ $spec['label'] }}:
+                                @if (isset($assets[$slot]))
+                                    <a href="{{ route('microsite.asset', [$site->slug, $slot]) }}" target="_blank" rel="noopener">{{ \Illuminate\Support\Str::limit($assets[$slot]->original_name, 30) }}</a>
+                                @else
+                                    <span>not uploaded</span>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <h2 style="margin:0;font-size:1.2rem">Entries ({{ number_format($site->entry_count) }})</h2>
                 @if ($entries->isNotEmpty())

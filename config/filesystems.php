@@ -47,6 +47,20 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Owner-uploaded site assets (banners, copy deck, rules doc). A private
+         * local folder in dev; on Laravel Cloud a bucket is attached as the disk
+         * named "assets", which overrides this entry. Files are always served
+         * through the app (never a public URL) so access can be checked per slot.
+         */
+        'assets' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/assets'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

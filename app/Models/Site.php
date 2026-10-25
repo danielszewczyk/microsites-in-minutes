@@ -38,6 +38,10 @@ class Site extends Model
 
     public const string TYPE_SWEEPSTAKES = 'sweepstakes';
 
+    public const string STATUS_DRAFT = 'draft';
+
+    public const string STATUS_PUBLISHED = 'published';
+
     /**
      * A cap on how many sites exist at once, so a runaway caller fills a small
      * table and then stops rather than running without bound.
@@ -81,6 +85,24 @@ class Site extends Model
     }
 
     /**
+     * @return HasMany<SiteAsset, $this>
+     */
+    public function assets(): HasMany
+    {
+        return $this->hasMany(SiteAsset::class);
+    }
+
+    public function asset(string $slot): ?SiteAsset
+    {
+        return $this->assets->firstWhere('slot', $slot);
+    }
+
+    public function assetFolder(): string
+    {
+        return 'sites/'.$this->slug;
+    }
+
+    /**
      * A readable, unguessable-enough public address: the business name, then
      * six random characters so two promos never collide.
      */
@@ -109,7 +131,12 @@ class Site extends Model
      */
     public function version(): string
     {
-        return (string) $this->updated_at?->getTimestamp().'-'.substr(md5((string) json_encode($this->content).json_encode($this->settings)), 0, 12);
+        $assets = $this->relationLoaded('assets') || $this->exists
+            ? $this->assets()->pluck('updated_at', 'slot')->toJson()
+            : '';
+
+        return (string) $this->updated_at?->getTimestamp()
+            .'-'.substr(md5((string) json_encode($this->content).json_encode($this->settings).$assets), 0, 12);
     }
 
     public function url(): string
@@ -120,6 +147,53 @@ class Site extends Model
     public function isSweepstakes(): bool
     {
         return $this->type === self::TYPE_SWEEPSTAKES;
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    /**
+     * Whether this site is taking entries right now: it must be published, and
+     * a sweepstakes must be inside its entry window when dates are set.
+     */
+    public function acceptsEntries(): bool
+    {
+        if ($this->isDraft()) {
+            return false;
+        }
+
+        $start = $this->inputDate('start_date');
+        $end = $this->inputDate('end_date');
+
+        if ($start !== null && now()->lt($start)) {
+            return false;
+        }
+
+        if ($end !== null && now()->gt($end->endOfDay())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * A date from the stored inputs, or null when absent or unparseable.
+     */
+    public function inputDate(string $key): ?Carbon
+    {
+        $value = $this->inputs[$key] ?? null;
+
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

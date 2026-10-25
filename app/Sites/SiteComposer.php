@@ -49,7 +49,9 @@ class SiteComposer
             'slug' => $this->freeSlug($inputs['business_name']),
             'manage_token_hash' => hash('sha256', $token),
             'type' => $inputs['type'],
-            'status' => 'published',
+            'status' => ($input['status'] ?? Site::STATUS_PUBLISHED) === Site::STATUS_DRAFT
+                ? Site::STATUS_DRAFT
+                : Site::STATUS_PUBLISHED,
             'inputs' => $inputs,
             'content' => $this->copywriter->generate($inputs),
             'settings' => $this->settings($inputs, $owner),
