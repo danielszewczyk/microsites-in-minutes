@@ -31,22 +31,18 @@
         * { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); line-height: 1.6; }
         .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
-        header { padding: 72px 0 32px; text-align: center; }
+        header { padding: 64px 0 24px; text-align: center; }
         h1 { font-size: clamp(2rem, 6vw, 3.2rem); letter-spacing: -0.02em; margin: 0 0 14px; }
         .sub { font-size: 1.2rem; color: var(--muted); max-width: 40ch; margin: 0 auto; }
         .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px; margin: 28px 0; }
+        @media (max-width: 620px) { .card { padding: 20px; } header { padding: 40px 0 16px; } }
         label { font-weight: 600; display: block; margin: 0 0 6px; }
         .hint { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
         input, textarea, select { font: inherit; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); }
-        textarea { min-height: 110px; resize: vertical; }
+        textarea { min-height: 120px; resize: vertical; }
         .field { margin: 0 0 20px; }
         .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         @media (max-width: 620px) { .row { grid-template-columns: 1fr; } }
-        .toggle { display: flex; gap: 10px; }
-        .toggle label { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; cursor: pointer; font-weight: 600; }
-        .toggle input { display: none; }
-        .toggle input:checked + span { color: var(--accent); }
-        .toggle label:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
         .btn { background: var(--accent); color: #fff; border: 0; border-radius: 12px; padding: 15px 28px; font-size: 1.1rem; font-weight: 600; cursor: pointer; width: 100%; }
         .err { background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 10px; margin: 0 0 8px; font-size: 0.92rem; }
         .errors { margin: 0 0 16px; }
@@ -63,6 +59,14 @@
         details.adv summary { cursor: pointer; font-weight: 600; margin-bottom: 12px; }
         fieldset { border: 1px dashed var(--line); border-radius: 12px; padding: 18px; margin: 0 0 20px; }
         legend { font-weight: 700; padding: 0 8px; }
+        /* Add-ons: optional toggle cards that reveal type-specific fields. */
+        .addons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 620px) { .addons { grid-template-columns: 1fr; } }
+        .addon { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; font-weight: 400; margin: 0; }
+        .addon:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+        .addon input { width: auto; margin: 3px 0 0; accent-color: var(--accent); flex: none; }
+        .addon b { display: block; font-weight: 700; }
+        .addon small { color: var(--muted); }
     </style>
 </head>
 <body>
@@ -72,7 +76,7 @@
                 <p class="promo">🎉 Launch promotion — every site is <strong>free</strong> while we're in beta. No card required.</p>
             @endif
             <h1>Microsites in Minutes</h1>
-            <p class="sub">Describe what you need — a promo, an event, a giveaway, any one-page site. Get a polished, mobile-first page with a built-in form, published to a shareable link in seconds.</p>
+            <p class="sub">Describe what you're promoting and get a polished, mobile-first page with a built-in form — published to a shareable link in seconds.</p>
         </div>
     </header>
 
@@ -89,43 +93,47 @@
             @endif
 
             <div class="field">
-                <label>What kind of page?</label>
-                <div class="toggle">
-                    @foreach ($types as $value => $spec)
-                        <label><input type="radio" name="type" value="{{ $value }}" {{ old('type', 'standard') === $value ? 'checked' : '' }}><span>{{ $spec['label'] }}</span></label>
-                    @endforeach
-                </div>
-            </div>
-
-            <div class="field">
                 <label for="business_name">Business name</label>
-                <input type="text" id="business_name" name="business_name" maxlength="80" value="{{ old('business_name') }}" required>
+                <input type="text" id="business_name" name="business_name" maxlength="80" value="{{ old('business_name') }}" autofocus required>
             </div>
 
             <div class="field">
-                <label for="prompt">Describe the promotion <span class="hint">— the prompt. What are you offering, and to whom?</span></label>
+                <label for="prompt">Describe the promotion <span class="hint">— what are you offering, and to whom?</span></label>
                 <textarea id="prompt" name="prompt" maxlength="1500" required placeholder="e.g. We're a dental practice on Central Park South giving away a professional teeth-whitening kit to new patients in NYC.">{{ old('prompt') }}</textarea>
             </div>
 
-            <div class="row">
-                <div class="field">
-                    <label for="accent_color">Accent color</label>
-                    <div class="color-row">
-                        <input type="color" id="accent_picker" value="{{ old('accent_color', '#0f766e') }}">
-                        <input type="text" id="accent_color" name="accent_color" maxlength="7" value="{{ old('accent_color', '#0f766e') }}" pattern="#[0-9a-fA-F]{6}">
+            {{-- Optional add-ons. By default a page is a simple promo/landing page;
+                 turning one on reveals the fields it needs and sets the page type. --}}
+            <input type="hidden" name="addon" id="addon" value="{{ old('addon') }}">
+            <div class="field">
+                <label>Add-ons <span class="hint">— optional. Start with a simple promo page, or turn one on.</span></label>
+                <div class="addons">
+                    <label class="addon"><input type="checkbox" id="addon_event"><span><b>Event</b><small>Date, venue &amp; RSVP</small></span></label>
+                    <label class="addon"><input type="checkbox" id="addon_sweeps"><span><b>Sweepstakes / giveaway</b><small>Prize, official rules &amp; winner draw</small></span></label>
+                </div>
+            </div>
+
+            <fieldset id="event" hidden>
+                <legend>Event details</legend>
+                <div class="row">
+                    <div class="field">
+                        <label for="event_date">Date</label>
+                        <input type="date" id="event_date" name="event_date" value="{{ old('event_date') }}">
+                    </div>
+                    <div class="field">
+                        <label for="event_time">Time</label>
+                        <input type="text" id="event_time" name="event_time" maxlength="60" value="{{ old('event_time') }}" placeholder="6:00 PM">
                     </div>
                 </div>
                 <div class="field">
-                    <label for="hero_image">Hero picture</label>
-                    <select id="hero_image" name="hero_image">
-                        <option value="auto" {{ old('hero_image', 'auto') === 'auto' ? 'selected' : '' }}>Pick one for me</option>
-                        <option value="none" {{ old('hero_image') === 'none' ? 'selected' : '' }}>No picture</option>
-                        @foreach ($illustrations as $art)
-                            <option value="{{ $art }}" {{ old('hero_image') === $art ? 'selected' : '' }}>{{ ucwords(str_replace('-', ' ', $art)) }}</option>
-                        @endforeach
-                    </select>
+                    <label for="venue">Venue</label>
+                    <input type="text" id="venue" name="venue" maxlength="160" value="{{ old('venue') }}" placeholder="The Grand Hall">
                 </div>
-            </div>
+                <div class="field">
+                    <label for="address">Address</label>
+                    <input type="text" id="address" name="address" maxlength="200" value="{{ old('address') }}">
+                </div>
+            </fieldset>
 
             <fieldset id="sweeps" hidden>
                 <legend>Giveaway details</legend>
@@ -159,30 +167,27 @@
                 </div>
             </fieldset>
 
-            <fieldset id="event" hidden>
-                <legend>Event details</legend>
-                <div class="row">
-                    <div class="field">
-                        <label for="event_date">Date</label>
-                        <input type="date" id="event_date" name="event_date" value="{{ old('event_date') }}">
-                    </div>
-                    <div class="field">
-                        <label for="event_time">Time</label>
-                        <input type="text" id="event_time" name="event_time" maxlength="60" value="{{ old('event_time') }}" placeholder="6:00 PM">
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="venue">Venue</label>
-                    <input type="text" id="venue" name="venue" maxlength="160" value="{{ old('venue') }}" placeholder="The Grand Hall">
-                </div>
-                <div class="field">
-                    <label for="address">Address</label>
-                    <input type="text" id="address" name="address" maxlength="200" value="{{ old('address') }}">
-                </div>
-            </fieldset>
-
             <details class="adv">
                 <summary>More options</summary>
+                <div class="row">
+                    <div class="field">
+                        <label for="accent_color">Accent color</label>
+                        <div class="color-row">
+                            <input type="color" id="accent_picker" value="{{ old('accent_color', '#0f766e') }}">
+                            <input type="text" id="accent_color" name="accent_color" maxlength="7" value="{{ old('accent_color', '#0f766e') }}" pattern="#[0-9a-fA-F]{6}">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="hero_image">Hero picture</label>
+                        <select id="hero_image" name="hero_image">
+                            <option value="auto" {{ old('hero_image', 'auto') === 'auto' ? 'selected' : '' }}>Pick one for me</option>
+                            <option value="none" {{ old('hero_image') === 'none' ? 'selected' : '' }}>No picture</option>
+                            @foreach ($illustrations as $art)
+                                <option value="{{ $art }}" {{ old('hero_image') === $art ? 'selected' : '' }}>{{ ucwords(str_replace('-', ' ', $art)) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="field">
                         <label for="offer_headline">Headline <span class="hint">(optional)</span></label>
@@ -260,15 +265,27 @@
 
     <script>
         (() => {
-            const sweeps = document.getElementById('sweeps');
+            // Add-ons drive the hidden "addon" field and reveal their fields. A
+            // page is one kind at a time, so turning one on turns the other off.
+            const addonEvent = document.getElementById('addon_event');
+            const addonSweeps = document.getElementById('addon_sweeps');
+            const addonInput = document.getElementById('addon');
             const event = document.getElementById('event');
-            const toggle = () => {
-                const type = document.querySelector('input[name=type]:checked')?.value;
-                sweeps.hidden = type !== 'sweepstakes';
-                event.hidden = type !== 'event';
+            const sweeps = document.getElementById('sweeps');
+
+            const sync = () => {
+                event.hidden = !addonEvent.checked;
+                sweeps.hidden = !addonSweeps.checked;
+                addonInput.value = addonSweeps.checked ? 'sweepstakes' : (addonEvent.checked ? 'event' : '');
             };
-            document.querySelectorAll('input[name=type]').forEach((r) => r.addEventListener('change', toggle));
-            toggle();
+
+            addonEvent.addEventListener('change', () => { if (addonEvent.checked) { addonSweeps.checked = false; } sync(); });
+            addonSweeps.addEventListener('change', () => { if (addonSweeps.checked) { addonEvent.checked = false; } sync(); });
+
+            // Restore the toggles after a validation error (old input).
+            if (addonInput.value === 'event') { addonEvent.checked = true; }
+            if (addonInput.value === 'sweepstakes') { addonSweeps.checked = true; }
+            sync();
 
             const picker = document.getElementById('accent_picker');
             const hex = document.getElementById('accent_color');

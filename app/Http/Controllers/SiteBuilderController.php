@@ -34,7 +34,6 @@ class SiteBuilderController extends Controller
         }
 
         return view('builder.index', [
-            'types' => Site::TYPES,
             'illustrations' => HeroArt::ILLUSTRATIONS,
             'plans' => Plans::all(),
             'launchFree' => Plans::launchFree(),

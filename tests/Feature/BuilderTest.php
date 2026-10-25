@@ -71,6 +71,63 @@ class BuilderTest extends TestCase
         $this->assertDatabaseCount('sites', 0);
     }
 
+    public function test_the_builder_drops_the_type_toggle_for_optional_add_ons(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertDontSee('What kind of page?')
+            ->assertSee('Add-ons')
+            ->assertSee('name="addon"', false);
+    }
+
+    public function test_with_no_add_on_the_page_defaults_to_standard(): void
+    {
+        $owner = Owner::factory()->create();
+
+        $this->actingAs($owner)->post('/sites', [
+            'business_name' => 'Plain Co',
+            'prompt' => 'A simple landing page for a shop that wants more weekday customers.',
+        ])->assertRedirect();
+
+        $this->assertSame(Site::TYPE_STANDARD, Site::query()->firstOrFail()->type);
+    }
+
+    public function test_the_sweepstakes_add_on_derives_the_type_and_requires_a_prize(): void
+    {
+        $owner = Owner::factory()->create();
+
+        // The add-on is on but there is no prize — the sweepstakes rule fires,
+        // which proves the type was derived from the add-on, not a type field.
+        $this->actingAs($owner)->post('/sites', [
+            'business_name' => 'Giveaway Co',
+            'prompt' => 'A giveaway for our grand opening this month in the neighbourhood.',
+            'addon' => 'sweepstakes',
+        ])->assertSessionHasErrors('prize');
+        $this->assertDatabaseCount('sites', 0);
+
+        $this->actingAs($owner)->post('/sites', [
+            'business_name' => 'Giveaway Co',
+            'prompt' => 'A giveaway for our grand opening this month in the neighbourhood.',
+            'addon' => 'sweepstakes',
+            'prize' => 'A $250 gift basket of our products.',
+        ])->assertRedirect();
+        $this->assertSame(Site::TYPE_SWEEPSTAKES, Site::query()->firstOrFail()->type);
+    }
+
+    public function test_the_event_add_on_derives_the_event_type(): void
+    {
+        $owner = Owner::factory()->create();
+
+        $this->actingAs($owner)->post('/sites', [
+            'business_name' => 'Gala Co',
+            'prompt' => 'An invitation page for our annual charity gala with RSVPs this autumn season.',
+            'addon' => 'event',
+            'event_date' => now()->addMonth()->toDateString(),
+        ])->assertRedirect();
+
+        $this->assertSame(Site::TYPE_EVENT, Site::query()->firstOrFail()->type);
+    }
+
     public function test_free_plan_allows_only_one_site(): void
     {
         $owner = Owner::factory()->create(['plan' => 'free']);

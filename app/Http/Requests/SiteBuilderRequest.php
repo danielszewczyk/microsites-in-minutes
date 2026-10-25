@@ -19,6 +19,25 @@ class SiteBuilderRequest extends FormRequest
     }
 
     /**
+     * The builder no longer asks for a page type up front — a page is a simple
+     * promo by default, and an optional add-on turns it into an event or a
+     * sweepstakes. Derive the type from the chosen add-on, unless a type was
+     * passed directly (the MCP tool and API still send one).
+     */
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('type')) {
+            $this->merge([
+                'type' => match ($this->input('addon')) {
+                    'event' => Site::TYPE_EVENT,
+                    'sweepstakes' => Site::TYPE_SWEEPSTAKES,
+                    default => Site::TYPE_STANDARD,
+                },
+            ]);
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -26,6 +45,7 @@ class SiteBuilderRequest extends FormRequest
         return [
             'business_name' => ['required', 'string', 'min:2', 'max:80'],
             'prompt' => ['required', 'string', 'min:10', 'max:1500'],
+            'addon' => ['nullable', Rule::in(['event', 'sweepstakes'])],
             'type' => ['required', Rule::in([Site::TYPE_STANDARD, Site::TYPE_EVENT, Site::TYPE_SWEEPSTAKES])],
 
             'event_date' => ['nullable', 'date'],
