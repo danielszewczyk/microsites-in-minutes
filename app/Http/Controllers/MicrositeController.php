@@ -28,8 +28,16 @@ class MicrositeController extends Controller
 {
     public function show(Request $request, string $slug): Response
     {
-        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        return $this->showForSite($request, Site::query()->where('slug', $slug)->firstOrFail());
+    }
 
+    /**
+     * Render a site's published page — reached by its slug, or by a vanity
+     * domain's Host (see SiteBuilderController::index). The HTML is cached by
+     * version; the view counter runs on a queue after the response.
+     */
+    public function showForSite(Request $request, Site $site): Response
+    {
         $version = $site->version();
 
         $html = Cache::remember(

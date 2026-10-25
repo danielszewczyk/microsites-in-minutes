@@ -120,6 +120,19 @@ class Site extends Model
         return $this->hasMany(SiteBreakdown::class);
     }
 
+    /**
+     * @return HasMany<Domain, $this>
+     */
+    public function domains(): HasMany
+    {
+        return $this->hasMany(Domain::class);
+    }
+
+    public function domain(): ?Domain
+    {
+        return $this->domains()->latest('id')->first();
+    }
+
     public function assetFolder(): string
     {
         return 'sites/'.$this->slug;

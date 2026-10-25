@@ -84,6 +84,49 @@
         </div>
 
         <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Custom domain</h2>
+            @if (! $plan['custom_domain'])
+                <p class="muted">Put this site on your own domain (e.g. submityoursmile.com) for <strong>$25/yr</strong> — available on paid plans.</p>
+            @elseif ($domain)
+                <p>Your domain: <strong>{{ $domain->domain }}</strong>
+                    @if ($domain->isActive())
+                        <span style="color:var(--accent)">· live</span> — <a href="https://{{ $domain->domain }}" target="_blank" rel="noopener">visit &nearr;</a>
+                    @else
+                        <span style="color:#b45309">· pending DNS</span>
+                    @endif
+                </p>
+                @unless ($domain->isActive())
+                    <p class="muted">Point it at us: add a <strong>CNAME</strong> from <code>{{ $domain->domain }}</code> to <code>{{ config('domains.cname_target') }}</code>, then activate.</p>
+                    <form method="post" action="{{ route('microsite.domain.activate', $site->slug) }}" style="display:inline">@csrf<button class="btn" type="submit">Activate</button></form>
+                @endunless
+                <form method="post" action="{{ route('microsite.domain.remove', $site->slug) }}" style="display:inline;margin-left:8px">@csrf<button class="rm" type="submit">Remove</button></form>
+            @else
+                <p class="muted">Put this site on your own vanity domain for <strong>$25/yr</strong> (DJA charges $250). Search for one:</p>
+                <form method="post" action="{{ route('microsite.domain.search', $site->slug) }}" style="display:flex;gap:8px;max-width:460px">
+                    @csrf
+                    <input type="text" name="domain" placeholder="submityoursmile.com" value="{{ old('domain') }}" style="flex:1">
+                    <button class="btn" type="submit">Search</button>
+                </form>
+                @if (session('domain_search'))
+                    @php($ds = session('domain_search'))
+                    <div style="margin-top:12px">
+                        @if ($ds['available'])
+                            <p><strong>{{ $ds['domain'] }}</strong> is available — ${{ number_format($ds['price_cents'] / 100, 2) }}/yr.</p>
+                            <form method="post" action="{{ route('microsite.domain.buy', $site->slug) }}">
+                                @csrf
+                                <input type="hidden" name="domain" value="{{ $ds['domain'] }}">
+                                <button class="btn" type="submit">Buy {{ $ds['domain'] }} — ${{ number_format($ds['price_cents'] / 100, 2) }}/yr</button>
+                            </form>
+                            @if (config('domains.stub'))<p class="muted" style="font-size:0.8rem;margin-top:8px">Demo: no domain is registered and nothing is charged yet.</p>@endif
+                        @else
+                            <p class="muted">{{ $ds['domain'] }} is already taken. Try another.</p>
+                        @endif
+                    </div>
+                @endif
+            @endif
+        </div>
+
+        <div class="card">
             <h2 style="margin-top:0;font-size:1.2rem">Where it's coming from</h2>
             <p class="muted" style="margin-top:0">Views, entries and conversion by source — counted on our side, no cookies or consent banner.</p>
             @php($reportTable = function ($label, $rows) {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DomainController;
 use App\Http\Controllers\MicrositeController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\SiteAssetController;
@@ -69,4 +70,16 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
     Route::get('/asset/{slot}', [SiteAssetController::class, 'serve'])
         ->middleware('throttle:120,1,microsite-asset')
         ->name('microsite.asset');
+
+    /*
+     * Vanity domains: buy one and serve the site on it.
+     */
+    Route::post('/domain/search', [DomainController::class, 'search'])
+        ->middleware('throttle:30,1,domain-search')->name('microsite.domain.search');
+    Route::post('/domain/buy', [DomainController::class, 'buy'])
+        ->middleware('throttle:10,1,domain-buy')->name('microsite.domain.buy');
+    Route::post('/domain/activate', [DomainController::class, 'activate'])
+        ->middleware('throttle:20,1,domain-activate')->name('microsite.domain.activate');
+    Route::post('/domain/remove', [DomainController::class, 'remove'])
+        ->middleware('throttle:20,1,domain-remove')->name('microsite.domain.remove');
 });
