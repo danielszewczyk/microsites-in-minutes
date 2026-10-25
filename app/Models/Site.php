@@ -292,4 +292,12 @@ class Site extends Model
     {
         return ! (bool) ($this->settings['remove_branding'] ?? false);
     }
+
+    /**
+     * Average time a visitor actively spent on the page, in whole seconds.
+     */
+    public function avgDwellSeconds(): int
+    {
+        return $this->dwell_count > 0 ? (int) round($this->dwell_ms_total / $this->dwell_count / 1000) : 0;
+    }
 }

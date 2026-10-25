@@ -73,6 +73,8 @@
                 <div class="stat"><b>{{ number_format($site->view_count) }}</b><span>views</span></div>
                 <div class="stat"><b>{{ number_format($site->entry_count) }}</b><span>entries</span></div>
                 <div class="stat"><b>{{ $site->view_count > 0 ? number_format($site->entry_count / $site->view_count * 100, 1) : '0.0' }}%</b><span>conversion</span></div>
+                @php($avg = $site->avgDwellSeconds())
+                <div class="stat"><b>{{ $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—' }}</b><span>avg. time on page</span></div>
             </div>
             @php($peak = max(1, collect($stats)->max('views')))
             <div class="bars" title="Views per day, last 30 days">
@@ -86,7 +88,7 @@
         <div class="card">
             <h2 style="margin-top:0;font-size:1.2rem">Custom domain</h2>
             @if (! $plan['custom_domain'])
-                <p class="muted">Put this site on your own domain (e.g. submityoursmile.com) for <strong>$25/yr</strong> — available on paid plans.</p>
+                <p class="muted">Put this site on your own domain (e.g. submityoursmile.com) for <strong>$25/yr</strong> — domain registration included. Available on paid plans.</p>
             @elseif ($domain)
                 <p>Your domain: <strong>{{ $domain->domain }}</strong>
                     @if ($domain->isActive())
@@ -101,7 +103,7 @@
                 @endunless
                 <form method="post" action="{{ route('microsite.domain.remove', $site->slug) }}" style="display:inline;margin-left:8px">@csrf<button class="rm" type="submit">Remove</button></form>
             @else
-                <p class="muted">Put this site on your own vanity domain for <strong>$25/yr</strong> (DJA charges $250). Search for one:</p>
+                <p class="muted">Put this site on your own vanity domain for <strong>$25/yr</strong> — domain registration included (DJA charges $250). Search for one:</p>
                 <form method="post" action="{{ route('microsite.domain.search', $site->slug) }}" style="display:flex;gap:8px;max-width:460px">
                     @csrf
                     <input type="text" name="domain" placeholder="submityoursmile.com" value="{{ old('domain') }}" style="flex:1">
@@ -124,6 +126,70 @@
                     </div>
                 @endif
             @endif
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Social preview</h2>
+            <p class="muted" style="margin-top:0">How your link looks when shared. Upload a desktop banner for a custom image, or we draw one from your brand.</p>
+            <style>
+                .sp-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px; }
+                .sp h4 { margin:0 0 8px; font-size:0.85rem; color:var(--muted); }
+                .sp img { display:block; width:100%; aspect-ratio:1200/630; object-fit:cover; background:var(--line); }
+                .sp-imsg { border-radius:16px; overflow:hidden; border:1px solid var(--line); }
+                .sp-imsg .m { background:var(--paper); padding:8px 12px; font-size:0.8rem; }
+                .sp-imsg .m b { display:block; }
+                .sp-fb { border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+                .sp-fb .m { background:#f0f2f5; color:#1c1e21; padding:10px 12px; }
+                .sp-fb .host { text-transform:uppercase; color:#606770; font-size:0.72rem; }
+                .sp-fb .t { font-weight:700; font-size:0.95rem; margin:2px 0; }
+                .sp-fb .d { color:#606770; font-size:0.82rem; }
+                .sp-tw { border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+                .sp-tw .m { padding:10px 12px; }
+                .sp-tw .t { font-weight:600; font-size:0.9rem; }
+                .sp-tw .d { color:var(--muted); font-size:0.82rem; margin-top:2px; }
+                .sp-tw .host { color:var(--muted); font-size:0.78rem; margin-top:4px; }
+            </style>
+            <div class="sp-grid">
+                <div class="sp">
+                    <h4>iMessage</h4>
+                    <div class="sp-imsg">
+                        <img src="{{ $og['image'] }}" alt="">
+                        <div class="m"><b>{{ \Illuminate\Support\Str::limit($og['title'], 50) }}</b>{{ $og['host'] }}</div>
+                    </div>
+                </div>
+                <div class="sp">
+                    <h4>Facebook</h4>
+                    <div class="sp-fb">
+                        <img src="{{ $og['image'] }}" alt="">
+                        <div class="m">
+                            <div class="host">{{ $og['host'] }}</div>
+                            <div class="t">{{ \Illuminate\Support\Str::limit($og['title'], 60) }}</div>
+                            <div class="d">{{ \Illuminate\Support\Str::limit($og['description'], 70) }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sp">
+                    <h4>Twitter / X</h4>
+                    <div class="sp-tw">
+                        <img src="{{ $og['image'] }}" alt="">
+                        <div class="m">
+                            <div class="t">{{ \Illuminate\Support\Str::limit($og['title'], 60) }}</div>
+                            <div class="d">{{ \Illuminate\Support\Str::limit($og['description'], 70) }}</div>
+                            <div class="host">🔗 {{ $og['host'] }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Google search preview</h2>
+            <p class="muted" style="margin-top:0">How your page title and description show in search. Edit them in "Edit &amp; regenerate" below.</p>
+            <div style="border:1px solid var(--line);border-radius:10px;padding:16px 18px;max-width:600px;background:#fff">
+                <div style="color:#202124;font-size:0.82rem">{{ $og['host'] }} › {{ $site->slug }}</div>
+                <div style="color:#1a0dab;font-size:1.25rem;line-height:1.3;margin:2px 0">{{ \Illuminate\Support\Str::limit($og['title'], 60) }}</div>
+                <div style="color:#4d5156;font-size:0.88rem;line-height:1.4">{{ \Illuminate\Support\Str::limit($og['description'], 160) ?: 'Add a meta description to control this text.' }}</div>
+            </div>
         </div>
 
         <div class="card">
@@ -224,13 +290,12 @@
         </div>
 
         <div class="card">
-            <h2 style="margin-top:0;font-size:1.2rem">Upload from your phone</h2>
-            <p class="muted">Scan this with your phone to upload banners (desktop + mobile), a copy deck and a rules document straight from your camera roll. The QR carries your private key — don't share it.</p>
-            <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">
-                <div style="width:170px">{!! $uploadQr !!}</div>
+            <h2 style="margin-top:0;font-size:1.2rem">Banners, deck &amp; rules</h2>
+            <p class="muted">Upload a desktop + mobile banner, a copy deck and a rules document — from this computer, or scan the code to do it from your phone.</p>
+            <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start">
                 <div style="flex:1;min-width:220px">
-                    <p style="margin:0 0 10px"><a href="{{ route('microsite.upload', $site->slug) }}">Open the upload page here &nearr;</a></p>
-                    <ul style="margin:0;padding-left:18px" class="muted">
+                    <a href="{{ route('microsite.upload', $site->slug) }}" class="btn" style="display:inline-block;text-decoration:none">Upload files</a>
+                    <ul style="margin:14px 0 0;padding-left:18px" class="muted">
                         @foreach (\App\Models\SiteAsset::SLOTS as $slot => $spec)
                             <li>{{ $spec['label'] }}:
                                 @if (isset($assets[$slot]))
@@ -241,6 +306,10 @@
                             </li>
                         @endforeach
                     </ul>
+                </div>
+                <div style="text-align:center">
+                    <div style="width:150px">{!! $uploadQr !!}</div>
+                    <p class="muted" style="font-size:0.8rem;margin:6px 0 0;max-width:150px">Or scan to upload from your phone (keeps the link private).</p>
                 </div>
             </div>
         </div>
@@ -341,6 +410,19 @@
                         <div class="field"><label for="amoe">Free alternate method of entry</label><textarea id="amoe" name="amoe" maxlength="800">{{ old('amoe', $inputs['amoe'] ?? '') }}</textarea></div>
                     </fieldset>
                 @endif
+
+                <fieldset style="margin-top:18px">
+                    <legend>SEO &amp; sharing</legend>
+                    <div class="field">
+                        <label for="seo_title">Page title <span class="hint" style="font-weight:400;color:var(--muted)">— up to 70 chars; blank uses the auto title</span></label>
+                        <input type="text" id="seo_title" name="seo_title" maxlength="70" value="{{ old('seo_title', $inputs['seo_title'] ?? '') }}" placeholder="{{ $og['title'] }}">
+                    </div>
+                    <div class="field">
+                        <label for="seo_description">Meta description <span class="hint" style="font-weight:400;color:var(--muted)">— up to 160 chars</span></label>
+                        <textarea id="seo_description" name="seo_description" maxlength="160" placeholder="{{ $og['description'] }}">{{ old('seo_description', $inputs['seo_description'] ?? '') }}</textarea>
+                    </div>
+                    <p class="muted" style="font-size:0.8rem;margin:0">Upload a favicon and a social banner in "Banners, deck &amp; rules" above to control the icon and share image.</p>
+                </fieldset>
 
                 <div class="row" style="margin-top:18px">
                     <div class="field">

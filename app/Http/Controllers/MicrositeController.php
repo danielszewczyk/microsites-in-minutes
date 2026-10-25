@@ -65,6 +65,25 @@ class MicrositeController extends Controller
         return response()->json(['version' => $site->version()])->header('Cache-Control', 'no-store');
     }
 
+    /**
+     * A time-on-page beacon: the page sends how many seconds it was actively
+     * visible when the visitor leaves. CSRF-exempt and capped, like the entry
+     * endpoint. Kept as a running total + count so the average can be shown.
+     */
+    public function ping(Request $request, string $slug): Response
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        $seconds = (int) round((float) $request->input('seconds', 0));
+
+        if ($seconds >= 1 && $seconds <= 1800) {
+            Site::query()->whereKey($site->id)->increment('dwell_ms_total', $seconds * 1000);
+            Site::query()->whereKey($site->id)->increment('dwell_count');
+        }
+
+        return response()->noContent();
+    }
+
     public function rules(string $slug): View
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
@@ -195,6 +214,7 @@ class MicrositeController extends Controller
                 'version' => $site->version(),
                 'enter' => route('microsite.enter', $site->slug, absolute: false),
                 'version_url' => route('microsite.version', $site->slug, absolute: false),
+                'ping' => route('microsite.ping', $site->slug, absolute: false),
             ],
         ];
     }

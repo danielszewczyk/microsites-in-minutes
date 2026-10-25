@@ -63,9 +63,11 @@ class SiteAssetController extends Controller
                 continue;
             }
 
-            $spec['kind'] === 'image'
-                ? $this->storeImage($request, $site, $slot)
-                : $this->storeDoc($request, $site, $slot);
+            match ($spec['kind']) {
+                'image' => $this->storeImage($request, $site, $slot),
+                'favicon' => $this->storeFavicon($request, $site, $slot),
+                default => $this->storeDoc($request, $site, $slot),
+            };
 
             $stored++;
         }
@@ -134,6 +136,23 @@ class SiteAssetController extends Controller
         $path = $site->assetFolder().'/'.$slot.'-'.Str::random(24).'.jpg';
 
         $this->put($site, $slot, $path, $binary, $request->file($slot)->getClientOriginalName(), 'image/jpeg');
+    }
+
+    /**
+     * A favicon / brand mark: a small square-ish image kept in its original
+     * format (PNG transparency preserved), validated and size-capped.
+     */
+    protected function storeFavicon(Request $request, Site $site, string $slot): void
+    {
+        $request->validate([
+            $slot => ['file', 'mimes:png,jpg,jpeg,webp', 'max:1024', 'dimensions:max_width=1024,max_height=1024'],
+        ], [], [$slot => SiteAsset::SLOTS[$slot]['label']]);
+
+        $file = $request->file($slot);
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'png');
+        $path = $site->assetFolder().'/'.$slot.'-'.Str::random(24).'.'.$ext;
+
+        $this->put($site, $slot, $path, (string) file_get_contents($file->getRealPath()), $file->getClientOriginalName(), $file->getMimeType() ?: 'image/png');
     }
 
     protected function storeDoc(Request $request, Site $site, string $slot): void

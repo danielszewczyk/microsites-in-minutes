@@ -183,6 +183,14 @@
                     <label for="ga4_id">Google Analytics 4 ID <span class="hint">(optional, Pro plan)</span></label>
                     <input type="text" id="ga4_id" name="ga4_id" maxlength="40" value="{{ old('ga4_id') }}" placeholder="G-XXXXXXXXXX">
                 </div>
+                <div class="field">
+                    <label for="seo_title">Page title <span class="hint">(optional, for search/sharing)</span></label>
+                    <input type="text" id="seo_title" name="seo_title" maxlength="70" value="{{ old('seo_title') }}">
+                </div>
+                <div class="field">
+                    <label for="seo_description">Meta description <span class="hint">(optional, up to 160 chars)</span></label>
+                    <textarea id="seo_description" name="seo_description" maxlength="160">{{ old('seo_description') }}</textarea>
+                </div>
             </details>
 
             <div class="row">

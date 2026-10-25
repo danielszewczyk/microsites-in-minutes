@@ -26,7 +26,7 @@
 <body>
     <div class="wrap">
         <h1>Upload for {{ $site->inputs['business_name'] ?? 'your site' }}</h1>
-        <p class="muted">Add banners and documents straight from your phone. They attach to your live page.</p>
+        <p class="muted">Add banners and documents from your computer or phone. They attach to your live page.</p>
 
         @if (session('status'))
             <div class="ok">{{ session('status') }}</div>

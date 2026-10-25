@@ -3,7 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Site;
+use App\Models\SiteAsset;
+use App\Support\OgImage;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Site-wide SEO endpoints: sitemap.xml (every published page), robots.txt, and
@@ -43,9 +48,40 @@ class SeoController extends Controller
         return response($body, 200, ['Content-Type' => 'text/plain']);
     }
 
-    public function favicon(string $slug): Response
+    /**
+     * The 1200×630 social-share image for a site, cached by version.
+     */
+    public function ogImage(string $slug): Response
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        $png = Cache::remember(
+            "og:{$site->id}:{$site->version()}",
+            now()->addDay(),
+            fn (): string => OgImage::forSite($site),
+        );
+
+        return response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
+    public function favicon(string $slug): Response|StreamedResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        // An uploaded mark wins over the generated dot.
+        $icon = $site->asset(SiteAsset::FAVICON);
+
+        if ($icon !== null && Storage::disk(SiteAsset::DISK)->exists($icon->disk_path)) {
+            return Storage::disk(SiteAsset::DISK)->response($icon->disk_path, 'favicon', [
+                'Content-Type' => $icon->mime,
+                'Cache-Control' => 'public, max-age=86400',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
         $accent = $site->accent();
 
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'

@@ -24,18 +24,23 @@ class SiteAsset extends Model
 
     public const string BANNER_MOBILE = 'banner_mobile';
 
+    public const string FAVICON = 'favicon';
+
     public const string COPY_DECK = 'copy_deck';
 
     public const string RULES_DOC = 'rules_doc';
 
     /**
-     * The upload slots and what each accepts.
+     * The upload slots and what each accepts. "kind" is image or doc; favicon is
+     * an image kept in its original format (so a transparent PNG mark stays
+     * transparent) rather than redrawn to a JPEG like the banners.
      *
      * @var array<string, array{label: string, kind: string, public: bool}>
      */
     public const array SLOTS = [
         self::BANNER_DESKTOP => ['label' => 'Desktop banner', 'kind' => 'image', 'public' => true],
         self::BANNER_MOBILE => ['label' => 'Mobile banner', 'kind' => 'image', 'public' => true],
+        self::FAVICON => ['label' => 'Favicon / mark', 'kind' => 'favicon', 'public' => true],
         self::COPY_DECK => ['label' => 'Copy deck', 'kind' => 'doc', 'public' => false],
         self::RULES_DOC => ['label' => 'Rules document', 'kind' => 'doc', 'public' => true],
     ];

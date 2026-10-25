@@ -7,7 +7,7 @@
     <title>{{ $content['meta']['title'] ?? $content['hero']['headline'] }}</title>
     <meta name="description" content="{{ $content['meta']['description'] ?? '' }}">
     <link rel="canonical" href="{{ $site->url() }}">
-    <link rel="icon" href="{{ route('microsite.favicon', $site->slug) }}" type="image/svg+xml">
+    <link rel="icon" href="{{ route('microsite.favicon', $site->slug) }}">
 
     {{-- Open Graph / Twitter: a shareable card with no external image dependency. --}}
     <meta property="og:type" content="website">
@@ -15,7 +15,11 @@
     <meta property="og:description" content="{{ $content['meta']['description'] ?? '' }}">
     <meta property="og:url" content="{{ $site->url() }}">
     <meta property="og:site_name" content="{{ $site->inputs['business_name'] ?? '' }}">
-    <meta name="twitter:card" content="summary">
+    <meta property="og:image" content="{{ route('microsite.og', $site->slug, absolute: true) }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="{{ route('microsite.og', $site->slug, absolute: true) }}">
 
     <style>
         :root { --accent: {{ $accent }}; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --card: #ffffff; --line: #e7e5e4; }
@@ -267,6 +271,25 @@
                     }
                 } catch (e) {}
             }, 5000);
+
+            /* Time on page: count only the time the page is actually visible, and
+               send it once when the visitor leaves (sendBeacon survives unload). */
+            let activeMs = 0;
+            let lastTick = Date.now();
+            let dwellSent = false;
+            const accrue = () => { if (!document.hidden) { activeMs += Date.now() - lastTick; } lastTick = Date.now(); };
+            const sendDwell = () => {
+                accrue();
+                if (dwellSent) { return; }
+                const seconds = Math.round(activeMs / 1000);
+                if (seconds < 1 || !navigator.sendBeacon) { return; }
+                dwellSent = true;
+                try {
+                    navigator.sendBeacon(data.ping, new Blob([JSON.stringify({ seconds })], { type: 'application/json' }));
+                } catch (e) { /* leaving anyway */ }
+            };
+            document.addEventListener('visibilitychange', () => { accrue(); if (document.hidden) { sendDwell(); } });
+            window.addEventListener('pagehide', sendDwell);
         })();
     </script>
 

@@ -36,6 +36,18 @@ class TemplateCopywriter implements Copywriter
 
         $content['meta'] = $this->meta($business, $prompt, $type, $content);
 
+        // Owner overrides for the SEO title and meta description.
+        $seoTitle = $this->clean($inputs['seo_title'] ?? '');
+        $seoDescription = $this->clean($inputs['seo_description'] ?? '');
+
+        if ($seoTitle !== '') {
+            $content['meta']['title'] = $this->trim($seoTitle, 70);
+        }
+
+        if ($seoDescription !== '') {
+            $content['meta']['description'] = $this->trim($seoDescription, 160);
+        }
+
         return $content;
     }
 

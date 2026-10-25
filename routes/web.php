@@ -54,9 +54,17 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:5,1,microsite-enter')
         ->name('microsite.enter');
 
+    Route::post('/ping', [MicrositeController::class, 'ping'])
+        ->middleware('throttle:30,1,microsite-ping')
+        ->name('microsite.ping');
+
     Route::get('/favicon.svg', [SeoController::class, 'favicon'])
         ->middleware('throttle:120,1,microsite-favicon')
         ->name('microsite.favicon');
+
+    Route::get('/og.png', [SeoController::class, 'ogImage'])
+        ->middleware('throttle:120,1,microsite-og')
+        ->name('microsite.og');
 
     /*
      * The owner's dashboard: control proven by the manage token, not a login.

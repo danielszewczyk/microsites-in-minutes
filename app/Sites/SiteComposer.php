@@ -139,6 +139,8 @@ class SiteComposer
             'business_name' => $this->str($input['business_name'] ?? '', 80),
             'prompt' => $this->str($input['prompt'] ?? '', 1500),
             'type' => $type,
+            'seo_title' => $this->str($input['seo_title'] ?? '', 70),
+            'seo_description' => $this->str($input['seo_description'] ?? '', 160),
             'offer_headline' => $this->str($input['offer_headline'] ?? '', 120),
             'cta_label' => $this->str($input['cta_label'] ?? '', 40),
             'location' => $this->str($input['location'] ?? '', 120),

@@ -38,6 +38,8 @@ class SiteBuilderRequest extends FormRequest
 
             'offer_headline' => ['nullable', 'string', 'max:120'],
             'cta_label' => ['nullable', 'string', 'max:40'],
+            'seo_title' => ['nullable', 'string', 'max:70'],
+            'seo_description' => ['nullable', 'string', 'max:160'],
             'location' => ['nullable', 'string', 'max:120'],
             'contact_email' => ['nullable', 'email', 'max:120'],
             'contact_phone' => ['nullable', 'string', 'max:40'],
