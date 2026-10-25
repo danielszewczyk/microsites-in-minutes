@@ -193,18 +193,18 @@
                 </div>
             </details>
 
-            <div class="row">
-                <div class="field">
-                    <label for="owner_name">Your name</label>
-                    <input type="text" id="owner_name" name="owner_name" maxlength="80" value="{{ old('owner_name') }}">
-                </div>
-                <div class="field">
-                    <label for="owner_email">Your email <span class="hint">— where your manage link goes</span></label>
-                    <input type="email" id="owner_email" name="owner_email" maxlength="120" value="{{ old('owner_email') }}" required>
-                </div>
-            </div>
-
-            <button type="submit" class="btn">Generate my site</button>
+            @auth
+                @if (auth()->user()->hasVerifiedEmail())
+                    <p class="muted" style="margin:0 0 10px">Publishing as <strong>{{ auth()->user()->email }}</strong>.</p>
+                    <button type="submit" class="btn">Generate my site</button>
+                @else
+                    <p class="muted" style="margin:0 0 10px">Verify your email to publish. <a href="{{ route('verification.notice') }}">Resend the link</a>.</p>
+                    <button type="submit" class="btn" disabled style="opacity:.6">Verify your email to publish</button>
+                @endif
+            @else
+                <p class="muted" style="margin:0 0 10px">You'll need a free account to publish.</p>
+                <a href="{{ route('login') }}" class="btn" style="display:block;text-align:center;text-decoration:none">Log in or sign up to publish</a>
+            @endauth
         </form>
 
         <div class="card">

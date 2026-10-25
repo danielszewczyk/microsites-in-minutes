@@ -6,7 +6,6 @@ use App\Mcp\Servers\MicrositesServer;
 use App\Mcp\Tools\MakeMicrositeTool;
 use App\Models\Owner;
 use App\Models\Site;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -16,7 +15,7 @@ class McpConnectorTest extends TestCase
 
     public function test_a_connected_account_can_make_a_microsite(): void
     {
-        $user = User::factory()->create(['email' => 'tesla@example.com', 'name' => 'Tesla Owner']);
+        $user = Owner::factory()->create(['email' => 'tesla@example.com', 'name' => 'Tesla Owner']);
 
         MicrositesServer::actingAs($user, 'api')
             ->tool(MakeMicrositeTool::class, [
@@ -33,7 +32,7 @@ class McpConnectorTest extends TestCase
 
     public function test_sweepstakes_through_the_connector_gets_rules(): void
     {
-        $user = User::factory()->create(['email' => 'tesla@example.com']);
+        $user = Owner::factory()->create(['email' => 'tesla@example.com']);
 
         MicrositesServer::actingAs($user, 'api')
             ->tool(MakeMicrositeTool::class, [
@@ -54,7 +53,7 @@ class McpConnectorTest extends TestCase
 
     public function test_a_new_sweepstakes_requires_a_prize(): void
     {
-        $user = User::factory()->create();
+        $user = Owner::factory()->create();
 
         MicrositesServer::actingAs($user, 'api')
             ->tool(MakeMicrositeTool::class, [
@@ -67,7 +66,7 @@ class McpConnectorTest extends TestCase
 
     public function test_an_account_can_only_change_its_own_site(): void
     {
-        $mine = User::factory()->create(['email' => 'mine@example.com']);
+        $mine = Owner::factory()->create(['email' => 'mine@example.com']);
         $someoneElse = Site::factory()->create();
 
         MicrositesServer::actingAs($mine, 'api')

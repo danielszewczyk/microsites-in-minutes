@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Models\Owner;
 use App\Sites\SiteComposer;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * Two Dr. Herman promotion drafts, generated through the real pipeline so they
@@ -30,7 +32,12 @@ class HermanPromosSeeder extends Seeder
     {
         $owner = Owner::query()->firstOrCreate(
             ['email' => 'daniel@thelocalhostcompany.com'],
-            ['name' => 'Daniel Szewczyk', 'plan' => 'business'],
+            [
+                'name' => 'Daniel Szewczyk',
+                'plan' => 'business',
+                'password' => Hash::make(Str::random(32)),
+                'email_verified_at' => now(),
+            ],
         );
 
         if ($owner->sites()->count() > 0) {
@@ -42,7 +49,7 @@ class HermanPromosSeeder extends Seeder
         $composer = app(SiteComposer::class);
 
         foreach ([$this->submitYourSmile(), $this->submitYourSnore()] as $input) {
-            ['site' => $site, 'token' => $token] = $composer->publish($input);
+            ['site' => $site, 'token' => $token] = $composer->publish($input, $owner);
             $this->command?->info("Draft: {$site->inputs['business_name']} — {$input['offer_headline']}");
             $this->command?->line('  Live:   '.$site->url());
             $this->command?->line('  Manage: '.route('microsite.manage', $site->slug).'?t='.$token);

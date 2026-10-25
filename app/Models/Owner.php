@@ -4,27 +4,41 @@ namespace App\Models;
 
 use App\Sites\Plans;
 use Database\Factories\OwnerFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
+use Laravel\Passport\Contracts\OAuthenticatable;
+use Laravel\Passport\HasApiTokens;
 
 /**
- * The account a microsite belongs to. Passwordless in the MVP: an owner is
- * found or created by email when a site is published, and control of a site is
- * proven by its manage token rather than a login.
+ * The authenticated account a microsite belongs to. An owner registers, verifies
+ * their email and logs in; publishing requires a verified account, so a site's
+ * owner is proven rather than just an email someone typed. The MCP OAuth flow
+ * also logs in as an Owner. Day-to-day control of a single site is still proven
+ * by its manage token (the shareable link).
  *
  * @property string $email
  * @property ?string $name
+ * @property ?string $password
  * @property string $plan
  * @property string $plan_status
  * @property ?string $billing_mode
+ * @property ?Carbon $email_verified_at
  */
-class Owner extends Model
+class Owner extends Authenticatable implements MustVerifyEmail, OAuthenticatable
 {
     /** @use HasFactory<OwnerFactory> */
-    use HasFactory;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $guarded = [];
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = ['password', 'remember_token'];
 
     /**
      * Defaults held in memory so a freshly made owner reports its plan before
@@ -36,6 +50,14 @@ class Owner extends Model
         'plan' => 'free',
         'plan_status' => 'active',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'password' => 'hashed',
+            'email_verified_at' => 'datetime',
+        ];
+    }
 
     /**
      * @return HasMany<Site, $this>
@@ -63,7 +85,11 @@ class Owner extends Model
         return Plans::tier($this->plan);
     }
 
-    public function can(string $feature): bool
+    /**
+     * Whether the owner's plan includes a feature. (Named `allows` rather than
+     * `can` to avoid colliding with the framework's authorization `can()`.)
+     */
+    public function allows(string $feature): bool
     {
         return (bool) ($this->plan()[$feature] ?? false);
     }

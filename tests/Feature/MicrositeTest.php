@@ -15,15 +15,16 @@ class MicrositeTest extends TestCase
     /**
      * @param  array<string, mixed>  $overrides
      */
-    protected function publish(array $overrides = []): Site
+    protected function publish(array $overrides = [], ?Owner $owner = null): Site
     {
+        $owner ??= Owner::factory()->business()->create();
+
         return app(SiteComposer::class)->publish([
-            'owner_email' => 'pat@example.com',
             'business_name' => 'Paul\'s Parlor',
             'prompt' => 'A friendly neighbourhood hair salon that wants more weekday bookings.',
             'type' => 'standard',
             ...$overrides,
-        ])['site'];
+        ], $owner)['site'];
     }
 
     public function test_published_page_renders_with_seo_tags(): void
@@ -80,7 +81,7 @@ class MicrositeTest extends TestCase
             'prize' => 'a whitening kit',
             'prize_value' => '$250',
         ]);
-        $standard = $this->publish(['owner_email' => 'business@example.com']);
+        $standard = $this->publish();
 
         $this->get(route('microsite.rules', $sweeps->slug))
             ->assertOk()
@@ -93,18 +94,13 @@ class MicrositeTest extends TestCase
 
     public function test_ga4_tag_only_renders_for_a_plan_with_analytics(): void
     {
-        $free = $this->publish(['ga4_id' => 'G-ABCDEF12']);
+        $free = $this->publish(['ga4_id' => 'G-ABCDEF12'], Owner::factory()->create());
         $this->get($free->url())->assertDontSee('googletagmanager.com');
 
-        $owner = Owner::query()->where('email', 'pat@example.com')->first();
-        $owner->update(['plan' => 'pro']);
-        $site = app(SiteComposer::class)->publish([
-            'owner_email' => 'pat@example.com',
+        $site = $this->publish([
             'business_name' => 'Pro Shop',
-            'prompt' => 'A pro plan site that wants Google Analytics enabled on it today.',
-            'type' => 'standard',
             'ga4_id' => 'G-ABCDEF12',
-        ])['site'];
+        ], Owner::factory()->pro()->create());
 
         $this->get($site->url())->assertSee('googletagmanager.com/gtag/js?id=G-ABCDEF12', false);
     }

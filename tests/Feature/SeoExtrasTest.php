@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Owner;
 use App\Models\Site;
 use App\Models\SiteAsset;
 use App\Sites\SiteComposer;
@@ -50,13 +51,12 @@ class SeoExtrasTest extends TestCase
     public function test_owner_can_override_the_title_and_description(): void
     {
         $site = app(SiteComposer::class)->publish([
-            'owner_email' => 'pat@example.com',
             'business_name' => 'Paul\'s Parlor',
             'prompt' => 'A neighbourhood salon that wants more weekday bookings this autumn season.',
             'type' => 'standard',
             'seo_title' => 'Best Salon in Town',
             'seo_description' => 'Book your cut today — weekday specials all month.',
-        ])['site'];
+        ], Owner::factory()->create())['site'];
 
         $this->assertSame('Best Salon in Town', $site->content['meta']['title']);
         $this->assertSame('Book your cut today — weekday specials all month.', $site->content['meta']['description']);

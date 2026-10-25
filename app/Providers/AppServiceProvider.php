@@ -76,5 +76,8 @@ class AppServiceProvider extends ServiceProvider
          */
         Passport::tokensCan(['mcp:use' => 'Create and manage your microsites']);
         Passport::setDefaultScope(['mcp:use']);
+
+        // The consent screen shown when a connector (e.g. Grok) asks to connect.
+        Passport::authorizationView('oauth.authorize');
     }
 }

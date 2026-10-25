@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AlarmController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\MicrositeController;
 use App\Http\Controllers\SeoController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\ShortLinkController;
 use App\Http\Controllers\SiteAssetController;
 use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\SiteManageController;
+use App\Http\Controllers\VerificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,8 +17,27 @@ use Illuminate\Support\Facades\Route;
  */
 Route::get('/', [SiteBuilderController::class, 'index'])->name('home');
 Route::post('/sites', [SiteBuilderController::class, 'store'])
-    ->middleware('throttle:10,1')
+    ->middleware(['auth', 'verified', 'throttle:10,1'])
     ->name('sites.store');
+
+/*
+ * Account auth: register, verify email, log in. Publishing requires a verified
+ * account; the MCP OAuth consent flow also logs in here.
+ */
+Route::middleware('guest')->group(function (): void {
+    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
+    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+});
+Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
+Route::middleware('auth')->group(function (): void {
+    Route::get('/email/verify', [VerificationController::class, 'notice'])->name('verification.notice');
+    Route::get('/email/verify/{id}/{hash}', [VerificationController::class, 'verify'])
+        ->middleware(['signed', 'throttle:6,1'])->name('verification.verify');
+    Route::post('/email/verification-notification', [VerificationController::class, 'resend'])
+        ->middleware('throttle:6,1')->name('verification.send');
+});
 
 /*
  * Site-wide SEO endpoints.

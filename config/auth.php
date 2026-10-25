@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Owner;
 use App\Models\User;
 
 return [
@@ -40,14 +41,14 @@ return [
     'guards' => [
         'web' => [
             'driver' => 'session',
-            'provider' => 'users',
+            'provider' => 'owners',
         ],
 
         // Used by the MCP connector at /mcp — Passport validates the OAuth
         // bearer token and resolves it back to a User (the connected account).
         'api' => [
             'driver' => 'passport',
-            'provider' => 'users',
+            'provider' => 'owners',
         ],
     ],
 
@@ -69,6 +70,11 @@ return [
     */
 
     'providers' => [
+        'owners' => [
+            'driver' => 'eloquent',
+            'model' => Owner::class,
+        ],
+
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),

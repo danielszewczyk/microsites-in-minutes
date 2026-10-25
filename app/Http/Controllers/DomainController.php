@@ -143,7 +143,7 @@ class DomainController extends Controller
     protected function ensureAllowed(Site $site): void
     {
         abort_unless(
-            $site->owner->can('custom_domain'),
+            $site->owner->allows('custom_domain'),
             403,
             'Custom domains are available on paid plans. Upgrade to add one.',
         );

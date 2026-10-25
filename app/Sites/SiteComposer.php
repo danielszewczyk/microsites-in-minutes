@@ -28,13 +28,11 @@ class SiteComposer
      *
      * @throws \RuntimeException when the owner is over their plan's site cap or the global cap is hit.
      */
-    public function publish(array $input): array
+    public function publish(array $input, Owner $owner): array
     {
         if (Site::query()->count() >= Site::MAX) {
             throw new \RuntimeException('The site limit has been reached; no more can be published right now.');
         }
-
-        $owner = $this->owner($input);
 
         if (! Plans::canPublishAnother($owner)) {
             throw new \RuntimeException(
@@ -122,17 +120,6 @@ class SiteComposer
     }
 
     /**
-     * @param  array<string, mixed>  $input
-     */
-    protected function owner(array $input): Owner
-    {
-        return Owner::query()->firstOrCreate(
-            ['email' => Str::lower(trim((string) $input['owner_email']))],
-            ['name' => $input['owner_name'] ?? null],
-        );
-    }
-
-    /**
      * Normalise and bound the builder input into the stored inputs document.
      *
      * @param  array<string, mixed>  $input
@@ -209,13 +196,13 @@ class SiteComposer
         return [
             'accent_color' => $inputs['accent_color'] ?? Site::DEFAULT_ACCENT,
             'hero_image' => $hero,
-            'ga4_id' => $owner->can('analytics') ? ($inputs['ga4_id'] ?: null) : null,
-            'remove_branding' => $inputs['remove_branding'] && $owner->can('remove_branding'),
-            'custom_domain' => $owner->can('custom_domain') ? ($inputs['custom_domain'] ?: null) : null,
+            'ga4_id' => $owner->allows('analytics') ? ($inputs['ga4_id'] ?: null) : null,
+            'remove_branding' => $inputs['remove_branding'] && $owner->allows('remove_branding'),
+            'custom_domain' => $owner->allows('custom_domain') ? ($inputs['custom_domain'] ?: null) : null,
             'verify_emails' => (bool) ($inputs['verify_emails'] ?? false),
             'verify_phones' => (bool) ($inputs['verify_phones'] ?? false),
             'require_confirmation' => (bool) ($inputs['require_confirmation'] ?? false),
-            'webhook_url' => $owner->can('integrations') ? (($inputs['webhook_url'] ?? '') ?: null) : null,
+            'webhook_url' => $owner->allows('integrations') ? (($inputs['webhook_url'] ?? '') ?: null) : null,
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Owner;
 use App\Models\Site;
 use App\Models\SiteAlarm;
 use App\Sites\SiteComposer;
@@ -88,11 +89,10 @@ class EntryToolsTest extends TestCase
     public function test_new_sites_get_a_default_views_alarm(): void
     {
         $site = app(SiteComposer::class)->publish([
-            'owner_email' => 'pat@example.com',
             'business_name' => 'Paul\'s Parlor',
             'prompt' => 'A salon that wants more weekday bookings this autumn season starting now.',
             'type' => 'standard',
-        ])['site'];
+        ], Owner::factory()->create())['site'];
 
         $this->assertDatabaseHas('site_alarms', ['site_id' => $site->id, 'metric' => 'views', 'threshold' => 100, 'enabled' => true]);
     }

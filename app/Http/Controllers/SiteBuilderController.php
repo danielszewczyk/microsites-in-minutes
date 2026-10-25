@@ -43,7 +43,7 @@ class SiteBuilderController extends Controller
     public function store(SiteBuilderRequest $request, SiteComposer $composer): RedirectResponse
     {
         try {
-            ['site' => $site, 'token' => $token, 'build' => $build] = $composer->publish($request->validated());
+            ['site' => $site, 'token' => $token, 'build' => $build] = $composer->publish($request->validated(), $request->user());
         } catch (\RuntimeException $e) {
             return back()->withInput()->withErrors(['prompt' => $e->getMessage()]);
         }

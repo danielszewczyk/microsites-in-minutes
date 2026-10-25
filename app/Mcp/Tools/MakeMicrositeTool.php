@@ -7,7 +7,6 @@ use App\Models\Site;
 use App\Sites\HeroArt;
 use App\Sites\SiteComposer;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Illuminate\Support\Str;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -91,11 +90,7 @@ class MakeMicrositeTool extends Tool
     protected function create(Owner $owner, array $validated, SiteComposer $composer): Response
     {
         try {
-            ['site' => $site, 'token' => $token, 'build' => $build] = $composer->publish([
-                ...$validated,
-                'owner_email' => $owner->email,
-                'owner_name' => $owner->name,
-            ]);
+            ['site' => $site, 'token' => $token, 'build' => $build] = $composer->publish($validated, $owner);
         } catch (\RuntimeException $e) {
             return Response::error($e->getMessage());
         }
@@ -130,16 +125,10 @@ class MakeMicrositeTool extends Tool
 
     protected function owner(): ?Owner
     {
+        // The api guard authenticates the OAuth token back to an Owner.
         $user = auth()->user();
 
-        if ($user === null || ! isset($user->email)) {
-            return null;
-        }
-
-        return Owner::query()->firstOrCreate(
-            ['email' => Str::lower($user->email)],
-            ['name' => $user->name ?? null],
-        );
+        return $user instanceof Owner ? $user : null;
     }
 
     protected function manageUrl(Site $site, string $token): string

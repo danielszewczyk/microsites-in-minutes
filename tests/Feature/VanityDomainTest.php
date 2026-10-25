@@ -95,7 +95,7 @@ class VanityDomainTest extends TestCase
     {
         $this->paidSite();
 
-        $this->get('/')->assertOk()->assertSee('Generate my site');
+        $this->get('/')->assertOk()->assertSee('Microsites in Minutes')->assertSee('name="prompt"', false);
     }
 
     public function test_a_taken_domain_is_not_available(): void

@@ -40,14 +40,14 @@ class BuildMeterTest extends TestCase
 
     public function test_publishing_records_a_build_event_and_accrues_balance(): void
     {
+        $owner = Owner::factory()->create(['email' => 'meter@example.com']);
         $result = app(SiteComposer::class)->publish([
-            'owner_email' => 'meter@example.com',
             'business_name' => 'Meter Co',
             'prompt' => 'A quick test of the build meter and the balance counter on this account.',
             'type' => 'standard',
-        ]);
+        ], $owner);
 
-        $owner = Owner::query()->where('email', 'meter@example.com')->firstOrFail();
+        $owner->refresh();
 
         $this->assertDatabaseHas('build_events', ['owner_id' => $owner->id, 'kind' => BuildEvent::KIND_CREATE]);
         $this->assertGreaterThanOrEqual(0, $result['build']['ms']);

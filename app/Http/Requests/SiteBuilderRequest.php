@@ -24,9 +24,6 @@ class SiteBuilderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'owner_email' => ['required', 'email', 'max:120'],
-            'owner_name' => ['nullable', 'string', 'max:80'],
-
             'business_name' => ['required', 'string', 'min:2', 'max:80'],
             'prompt' => ['required', 'string', 'min:10', 'max:1500'],
             'type' => ['required', Rule::in([Site::TYPE_STANDARD, Site::TYPE_EVENT, Site::TYPE_SWEEPSTAKES])],
