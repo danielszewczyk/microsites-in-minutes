@@ -4,6 +4,11 @@ namespace App\Providers;
 
 use App\Domains\DomainProvisioner;
 use App\Domains\StubProvisioner;
+use App\Leads\BouncerVerifier;
+use App\Leads\EmailVerifier;
+use App\Leads\NullPhoneVerifier;
+use App\Leads\NullVerifier;
+use App\Leads\PhoneVerifier;
 use App\Sites\Copywriter\Copywriter;
 use App\Sites\Copywriter\TemplateCopywriter;
 use Illuminate\Support\Facades\URL;
@@ -34,6 +39,22 @@ class AppServiceProvider extends ServiceProvider
                 default => StubProvisioner::class,
             },
         );
+
+        /*
+         * Email deliverability verification: Bouncer when a key is set, else a
+         * no-op verifier that marks entries "unverified".
+         */
+        $this->app->bind(EmailVerifier::class, function (): EmailVerifier {
+            $key = config('services.bouncer.key');
+
+            return $key ? new BouncerVerifier($key) : new NullVerifier;
+        });
+
+        /*
+         * Phone-number lookup verification. A real lookup provider (e.g. Twilio
+         * Lookup) is wired at deploy; until then the no-op verifier is used.
+         */
+        $this->app->bind(PhoneVerifier::class, NullPhoneVerifier::class);
     }
 
     /**

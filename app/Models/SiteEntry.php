@@ -29,6 +29,7 @@ class SiteEntry extends Model
         return [
             'extra' => 'array',
             'is_amoe' => 'boolean',
+            'email_score' => 'integer',
         ];
     }
 

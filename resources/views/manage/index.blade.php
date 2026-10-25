@@ -323,21 +323,53 @@
             @if ($entries->isEmpty())
                 <p class="muted">No entries yet. Share your link to start collecting.</p>
             @else
+                @php($badge = function ($status) {
+                    $map = [
+                        'deliverable' => ['#166534', '#dcfce7', '✓ deliverable'], 'valid' => ['#166534', '#dcfce7', '✓ valid'],
+                        'risky' => ['#92400e', '#fef3c7', '⚠ risky'],
+                        'undeliverable' => ['#991b1b', '#fee2e2', '✕ undeliverable'], 'invalid' => ['#991b1b', '#fee2e2', '✕ invalid'],
+                    ];
+                    if (! $status || ! isset($map[$status])) { return ''; }
+                    [$fg, $bg, $text] = $map[$status];
+                    return '<span style="font-size:0.7rem;padding:1px 6px;border-radius:6px;color:'.$fg.';background:'.$bg.';margin-left:6px;white-space:nowrap">'.$text.'</span>';
+                })
                 <table>
-                    <thead><tr><th>When</th><th>Name</th><th>Email</th><th>Phone</th></tr></thead>
+                    <thead><tr><th>When</th><th>Name</th><th>Email</th><th>Phone</th><th>Source</th><th>Details</th></tr></thead>
                     <tbody>
                         @foreach ($entries as $entry)
                             <tr>
                                 <td class="muted">{{ $entry->created_at?->diffForHumans() }}</td>
                                 <td>{{ $entry->name }}</td>
-                                <td>{{ $entry->email }}</td>
-                                <td>{{ $entry->phone }}</td>
+                                <td>{{ $entry->email }}{!! $badge($entry->email_status) !!}</td>
+                                <td>{{ $entry->phone }}{!! $badge($entry->phone_status) !!}</td>
+                                <td class="muted" style="font-size:0.82rem">{{ $entry->source ?: '—' }}</td>
+                                <td>
+                                    <details>
+                                        <summary class="muted" style="cursor:pointer;font-size:0.82rem">view</summary>
+                                        <div class="muted" style="font-size:0.78rem;line-height:1.5;padding-top:4px">
+                                            Device: {{ $entry->device ?: '—' }}<br>
+                                            Country: {{ $entry->country ?: '—' }}<br>
+                                            IP: {{ $entry->ip ?: '—' }}<br>
+                                            Campaign: {{ $entry->campaign ?: '—' }}<br>
+                                            Line: {{ $entry->phone_line ?: '—' }}<br>
+                                            UA: <span style="word-break:break-all">{{ \Illuminate\Support\Str::limit($entry->user_agent, 120) ?: '—' }}</span>
+                                        </div>
+                                    </details>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             @endif
         </div>
+
+        @if ($entries->isNotEmpty())
+            <div class="card ok">
+                <h2 style="margin-top:0;font-size:1.2rem">Turn these leads into customers</h2>
+                <p class="muted" style="margin-top:0">Send a promo email to everyone who entered — in minutes — with <strong>Emails in Minutes</strong>, our upcoming email-campaign tool. Your verified, deliverable list is ready to go.</p>
+                <button type="button" class="btn" disabled style="opacity:.75;cursor:default">Emails in Minutes — coming soon</button>
+            </div>
+        @endif
 
         <div class="card">
             <h2 style="margin-top:0;font-size:1.2rem">Edit &amp; regenerate</h2>
@@ -421,6 +453,18 @@
                         <textarea id="seo_description" name="seo_description" maxlength="160" placeholder="{{ $og['description'] }}">{{ old('seo_description', $inputs['seo_description'] ?? '') }}</textarea>
                     </div>
                     <p class="muted" style="font-size:0.8rem;margin:0">Upload a favicon and a social banner in "Banners, deck &amp; rules" above to control the icon and share image.</p>
+                </fieldset>
+
+                <fieldset style="margin-top:18px">
+                    <legend>Entry verification <span class="hint" style="font-weight:400;color:var(--muted)">— add-ons</span></legend>
+                    <label class="muted" style="font-weight:400;display:block;margin-bottom:8px">
+                        <input type="checkbox" name="verify_emails" value="1" style="width:auto" {{ ($inputs['verify_emails'] ?? false) ? 'checked' : '' }}>
+                        Verify entry <strong>emails</strong> for deliverability (Bouncer){{ config('services.bouncer.key') ? '' : ' — needs a Bouncer key' }}
+                    </label>
+                    <label class="muted" style="font-weight:400;display:block">
+                        <input type="checkbox" name="verify_phones" value="1" style="width:auto" {{ ($inputs['verify_phones'] ?? false) ? 'checked' : '' }}>
+                        Verify entry <strong>phone numbers</strong> (SMS/line lookup) — wired at launch
+                    </label>
                 </fieldset>
 
                 <div class="row" style="margin-top:18px">

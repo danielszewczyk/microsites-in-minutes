@@ -90,6 +90,8 @@ class SiteManageController extends Controller
             'hero_image' => ['nullable', 'string', Rule::in(['auto', 'none', ...HeroArt::ILLUSTRATIONS])],
             'ga4_id' => ['nullable', 'string', 'regex:/^G-[A-Z0-9]{4,20}$/'],
             'remove_branding' => ['boolean'],
+            'verify_emails' => ['boolean'],
+            'verify_phones' => ['boolean'],
             'custom_domain' => ['nullable', 'string', 'max:120'],
             'prize' => ['nullable', 'required_if:type,'.SiteModel::TYPE_SWEEPSTAKES, 'string', 'max:300'],
             'prize_value' => ['nullable', 'string', 'max:60'],
@@ -117,7 +119,7 @@ class SiteManageController extends Controller
 
         return response()->streamDownload(function () use ($site): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Phone', 'Message', 'Source', 'Campaign', 'Device', 'Free entry (AMOE)']);
+            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Email status', 'Phone', 'Phone status', 'Message', 'Source', 'Campaign', 'Device', 'Country', 'IP', 'User agent', 'Free entry (AMOE)']);
 
             $site->entries()->oldest()->chunk(500, function ($chunk) use ($out): void {
                 foreach ($chunk as $entry) {
@@ -125,11 +127,16 @@ class SiteManageController extends Controller
                         $entry->created_at?->toDateTimeString(),
                         $entry->name,
                         $entry->email,
+                        $entry->email_status,
                         $entry->phone,
+                        $entry->phone_status,
                         $entry->message,
                         $entry->source,
                         $entry->campaign,
                         $entry->device,
+                        $entry->country,
+                        $entry->ip,
+                        $entry->user_agent,
                         $entry->is_amoe ? 'yes' : 'no',
                     ]));
                 }

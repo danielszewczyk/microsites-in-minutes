@@ -48,6 +48,8 @@ class SiteBuilderRequest extends FormRequest
             'hero_image' => ['nullable', 'string', Rule::in(['auto', 'none', ...HeroArt::ILLUSTRATIONS])],
             'ga4_id' => ['nullable', 'string', 'regex:/^G-[A-Z0-9]{4,20}$/'],
             'remove_branding' => ['boolean'],
+            'verify_emails' => ['boolean'],
+            'verify_phones' => ['boolean'],
             'custom_domain' => ['nullable', 'string', 'max:120'],
 
             'prize' => ['nullable', 'required_if:type,'.Site::TYPE_SWEEPSTAKES, 'string', 'max:300'],

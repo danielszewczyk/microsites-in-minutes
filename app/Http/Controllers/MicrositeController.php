@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\RecordSiteHit;
+use App\Jobs\VerifyEntryEmail;
+use App\Jobs\VerifyEntryPhone;
 use App\Models\Site;
 use App\Models\SiteAsset;
 use App\Models\SiteEntry;
@@ -14,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 /**
  * Serves a published microsite. Everything on the page came from the model, so
@@ -147,7 +150,7 @@ class MicrositeController extends Controller
 
         $dims = TrafficSource::fromInput($request);
 
-        SiteEntry::query()->create([
+        $entry = SiteEntry::query()->create([
             'site_id' => $site->id,
             'name' => $validated['name'],
             'email' => $validated['email'] ?? null,
@@ -155,6 +158,9 @@ class MicrositeController extends Controller
             'message' => $validated['message'] ?? null,
             'is_amoe' => false,
             'ip_hash' => hash('sha256', (string) $request->ip()),
+            'ip' => $request->ip(),
+            'user_agent' => Str::limit((string) $request->userAgent(), 490, ''),
+            'country' => $this->country($request),
             'source' => $dims['source'],
             'campaign' => $dims['campaign'],
             'device' => $dims['device'],
@@ -166,7 +172,29 @@ class MicrositeController extends Controller
         RecordSiteHit::bump($site->id, $day, 'entries');
         RecordSiteHit::breakdowns($site->id, $dims, 'entries');
 
+        // Verification add-ons, off the request path, when the owner opted in.
+        if (($site->settings['verify_emails'] ?? false) && filled($entry->email)) {
+            VerifyEntryEmail::dispatch($entry->id);
+        }
+
+        if (($site->settings['verify_phones'] ?? false) && filled($entry->phone)) {
+            VerifyEntryPhone::dispatch($entry->id);
+        }
+
         return response()->json(['ok' => true, 'message' => $successMessage]);
+    }
+
+    /**
+     * The visitor's country from Cloudflare's CF-IPCountry header (set in
+     * production behind Cloudflare), or null. "XX"/"T1" mean unknown/Tor.
+     */
+    protected function country(Request $request): ?string
+    {
+        $country = strtoupper((string) $request->headers->get('CF-IPCountry'));
+
+        return preg_match('/^[A-Z]{2}$/', $country) === 1 && ! in_array($country, ['XX', 'T1'], true)
+            ? $country
+            : null;
     }
 
     /**

@@ -48,4 +48,13 @@ return [
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
+    /*
+     * Bouncer (usebouncer.com) email-deliverability verification. When a key is
+     * set, owners who turn it on get their entry emails verified; without a key
+     * the NullVerifier is used and entries are marked "unverified".
+     */
+    'bouncer' => [
+        'key' => env('BOUNCER_API_KEY'),
+    ],
+
 ];

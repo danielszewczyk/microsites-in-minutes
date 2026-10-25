@@ -151,6 +151,8 @@ class SiteComposer
             'ga4_id' => $this->str($input['ga4_id'] ?? '', 40),
             'remove_branding' => (bool) ($input['remove_branding'] ?? false),
             'custom_domain' => $this->str($input['custom_domain'] ?? '', 120),
+            'verify_emails' => (bool) ($input['verify_emails'] ?? false),
+            'verify_phones' => (bool) ($input['verify_phones'] ?? false),
         ];
 
         if ($type === Site::TYPE_EVENT) {
@@ -199,6 +201,8 @@ class SiteComposer
             'ga4_id' => $owner->can('analytics') ? ($inputs['ga4_id'] ?: null) : null,
             'remove_branding' => $inputs['remove_branding'] && $owner->can('remove_branding'),
             'custom_domain' => $owner->can('custom_domain') ? ($inputs['custom_domain'] ?: null) : null,
+            'verify_emails' => (bool) ($inputs['verify_emails'] ?? false),
+            'verify_phones' => (bool) ($inputs['verify_phones'] ?? false),
         ];
     }
 
