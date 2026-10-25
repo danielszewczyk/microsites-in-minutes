@@ -212,13 +212,79 @@ class Site extends Model
         return $this->status === self::STATUS_DRAFT;
     }
 
+    public const string PHASE_COMING_SOON = 'coming_soon';
+
+    public const string PHASE_LIVE = 'live';
+
+    public const string PHASE_ENDED = 'ended';
+
+    public function goLiveAt(): ?Carbon
+    {
+        return $this->settingDate('go_live_at');
+    }
+
+    public function endsAt(): ?Carbon
+    {
+        return $this->settingDate('ends_at');
+    }
+
+    /**
+     * Which page the public sees right now: a coming-soon page before the
+     * go-live trigger, an ended page after the end trigger, otherwise the live
+     * page. A draft is always treated as coming-soon.
+     */
+    public function phase(): string
+    {
+        $goLive = $this->goLiveAt();
+        $ends = $this->endsAt();
+
+        if ($goLive !== null && now()->lt($goLive)) {
+            return self::PHASE_COMING_SOON;
+        }
+
+        if ($ends !== null && now()->gt($ends)) {
+            return self::PHASE_ENDED;
+        }
+
+        return self::PHASE_LIVE;
+    }
+
+    /**
+     * When the page next changes phase on its own (go-live or end), so the
+     * cached render can expire exactly then rather than showing a stale state.
+     */
+    public function nextTransitionAt(): ?Carbon
+    {
+        $upcoming = collect([$this->goLiveAt(), $this->endsAt()])
+            ->filter(fn (?Carbon $at): bool => $at !== null && $at->isFuture())
+            ->sort()
+            ->first();
+
+        return $upcoming;
+    }
+
+    protected function settingDate(string $key): ?Carbon
+    {
+        $value = $this->settings[$key] ?? null;
+
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     /**
      * Whether this site is taking entries right now: it must be published, and
      * a sweepstakes must be inside its entry window when dates are set.
      */
     public function acceptsEntries(): bool
     {
-        if ($this->isDraft()) {
+        if ($this->isDraft() || $this->phase() !== self::PHASE_LIVE) {
             return false;
         }
 

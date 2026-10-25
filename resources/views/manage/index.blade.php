@@ -531,6 +531,21 @@ Content-Type: application/json
                     <p class="muted" style="font-size:0.8rem;margin:0">Connect to Google Sheets, Salesforce, Mailchimp and 6,000+ apps via a Zapier or Make webhook. Native integrations coming soon.</p>
                 </fieldset>
 
+                <fieldset style="margin-top:18px">
+                    <legend>Schedule <span class="hint" style="font-weight:400;color:var(--muted)">— current phase: {{ str_replace('_', ' ', $site->phase()) }}</span></legend>
+                    <div class="row">
+                        <div class="field">
+                            <label for="go_live_at">Go live at <span class="hint" style="font-weight:400;color:var(--muted)">— coming-soon page until then</span></label>
+                            <input type="datetime-local" id="go_live_at" name="go_live_at" value="{{ old('go_live_at', $inputs['go_live_at'] ?? '') }}">
+                        </div>
+                        <div class="field">
+                            <label for="ends_at">Ends at <span class="hint" style="font-weight:400;color:var(--muted)">— ended page after then</span></label>
+                            <input type="datetime-local" id="ends_at" name="ends_at" value="{{ old('ends_at', $inputs['ends_at'] ?? '') }}">
+                        </div>
+                    </div>
+                    <p class="muted" style="font-size:0.8rem;margin:0">Leave blank to stay live. Visitors see a "coming soon" page (with a notify-me signup) before go-live, and an "ended" page after.</p>
+                </fieldset>
+
                 <div class="row" style="margin-top:18px">
                     <div class="field">
                         <label for="ga4_id">Google Analytics 4 ID {{ $plan['analytics'] ? '' : '(Pro plan)' }}</label>

@@ -151,6 +151,8 @@ class SiteComposer
             'verify_phones' => (bool) ($input['verify_phones'] ?? false),
             'require_confirmation' => (bool) ($input['require_confirmation'] ?? false),
             'webhook_url' => $this->str($input['webhook_url'] ?? '', 300),
+            'go_live_at' => $this->str($input['go_live_at'] ?? '', 40),
+            'ends_at' => $this->str($input['ends_at'] ?? '', 40),
         ];
 
         if ($type === Site::TYPE_EVENT) {
@@ -203,6 +205,8 @@ class SiteComposer
             'verify_phones' => (bool) ($inputs['verify_phones'] ?? false),
             'require_confirmation' => (bool) ($inputs['require_confirmation'] ?? false),
             'webhook_url' => $owner->allows('integrations') ? (($inputs['webhook_url'] ?? '') ?: null) : null,
+            'go_live_at' => ($inputs['go_live_at'] ?? '') ?: null,
+            'ends_at' => ($inputs['ends_at'] ?? '') ?: null,
         ];
     }
 

@@ -47,11 +47,23 @@ class MicrositeController extends Controller
     {
         $version = $site->version();
         $host = md5($request->getHost());
+        $phase = $site->phase();
+
+        $view = match ($phase) {
+            Site::PHASE_COMING_SOON => 'microsite.coming-soon',
+            Site::PHASE_ENDED => 'microsite.ended',
+            default => 'microsite.show',
+        };
+
+        // Cache expires at the next scheduled transition (go-live/end) so the
+        // page flips phase on time rather than serving a stale state for an hour.
+        $next = $site->nextTransitionAt();
+        $until = $next !== null && $next->lt(now()->addHour()) ? $next : now()->addHour();
 
         $html = Cache::remember(
-            "site:{$site->id}:{$host}:{$version}",
-            now()->addHour(),
-            fn (): string => view('microsite.show', $this->viewData($site))->render(),
+            "site:{$site->id}:{$host}:{$phase}:{$version}",
+            $until,
+            fn (): string => view($view, $this->viewData($site))->render(),
         );
 
         dispatch(RecordSiteHit::forToday($site->id, TrafficSource::fromRequest($request)))->afterResponse();
@@ -150,10 +162,16 @@ class MicrositeController extends Controller
             return response()->json(['ok' => true, 'message' => $successMessage]);
         }
 
-        if (! $site->acceptsEntries()) {
-            $message = $site->isDraft()
-                ? 'This page is a draft and is not accepting entries yet.'
-                : 'This promotion is not currently accepting entries.';
+        // A "notify me" signup on a coming-soon page is allowed as a waitlist
+        // lead even though the page isn't live yet.
+        $waitlist = $site->phase() === Site::PHASE_COMING_SOON && $request->boolean('waitlist');
+
+        if (! $site->acceptsEntries() && ! $waitlist) {
+            $message = $site->phase() === Site::PHASE_ENDED
+                ? 'This promotion has ended.'
+                : ($site->isDraft()
+                    ? 'This page is a draft and is not accepting entries yet.'
+                    : 'This promotion is not currently accepting entries.');
 
             return response()->json(['ok' => false, 'message' => $message], 422);
         }
@@ -197,7 +215,7 @@ class MicrositeController extends Controller
             'ip' => $request->ip(),
             'user_agent' => Str::limit((string) $request->userAgent(), 490, ''),
             'country' => $this->country($request),
-            'source' => $dims['source'],
+            'source' => $waitlist ? 'waitlist' : $dims['source'],
             'campaign' => $dims['campaign'],
             'device' => $dims['device'],
             'confirm_token' => $confirmToken,
@@ -325,6 +343,9 @@ class MicrositeController extends Controller
             'showBranding' => $site->showsBranding(),
             'isDraft' => $site->isDraft(),
             'acceptsEntries' => $site->acceptsEntries(),
+            'phase' => $site->phase(),
+            'goLiveAt' => $site->goLiveAt(),
+            'endsAt' => $site->endsAt(),
             'banners' => $this->bannerUrls($site),
             'rulesDocUrl' => $site->asset(SiteAsset::RULES_DOC) !== null
                 ? route('microsite.asset', [$site->slug, SiteAsset::RULES_DOC], absolute: false)
