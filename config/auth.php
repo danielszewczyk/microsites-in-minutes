@@ -42,6 +42,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Used by the MCP connector at /mcp — Passport validates the OAuth
+        // bearer token and resolves it back to a User (the connected account).
+        'api' => [
+            'driver' => 'passport',
+            'provider' => 'users',
+        ],
     ],
 
     /*

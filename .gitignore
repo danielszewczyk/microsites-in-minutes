@@ -29,3 +29,8 @@ Thumbs.db
 # Local SQLite database
 /database/*.sqlite
 /database/*.sqlite-*
+
+# Passport keys (generated per environment)
+/storage/oauth-*.key
+oauth-public.key
+oauth-private.key

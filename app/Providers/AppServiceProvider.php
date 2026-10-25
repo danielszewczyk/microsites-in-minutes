@@ -6,6 +6,7 @@ use App\Sites\Copywriter\Copywriter;
 use App\Sites\Copywriter\TemplateCopywriter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Passport;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,5 +34,12 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
+
+        /*
+         * The one scope the MCP connector asks for: create and manage the
+         * connected account's microsites.
+         */
+        Passport::tokensCan(['mcp:use' => 'Create and manage your microsites']);
+        Passport::setDefaultScope(['mcp:use']);
     }
 }
