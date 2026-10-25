@@ -130,7 +130,7 @@ class TemplateCopywriter implements Copywriter
             ],
             'cta' => [
                 'label' => $this->firstFilled($inputs['cta_label'] ?? null, 'Enter the giveaway'),
-                'note' => 'Free to enter. No purchase necessary. Open to '.$this->trim($eligibility, 80),
+                'note' => 'Free to enter. No purchase necessary. Open to '.$this->clip($eligibility, 80).'.',
             ],
             'form' => [
                 'heading' => 'Enter the giveaway',
@@ -217,6 +217,15 @@ class TemplateCopywriter implements Copywriter
     protected function trim(string $value, int $max): string
     {
         return Str::limit($this->clean($value), $max, '…');
+    }
+
+    /**
+     * Truncate without an ellipsis and strip trailing punctuation, so the
+     * caller can append its own period cleanly (no "entry...." artefacts).
+     */
+    protected function clip(string $value, int $max): string
+    {
+        return rtrim(Str::limit($this->clean($value), $max, ''), ' .,;:—-');
     }
 
     protected function date(mixed $value): ?Carbon
