@@ -52,7 +52,11 @@
     <div class="wrap">
         @if (session('created'))
             <div class="card ok">
-                <p style="margin-top:0"><strong>Your site is live.</strong></p>
+                <p style="margin-top:0"><strong>Your site is live.</strong>
+                    @isset(session('created')['build_ms'])
+                        <span class="muted">Built in {{ number_format(session('created')['build_ms'] / 1000, 1) }}s — ${{ number_format(session('created')['build_cents'] / 100, 2) }} (first build minute free).</span>
+                    @endisset
+                </p>
                 <p class="muted">Live link (share this):</p>
                 <p class="share">{{ session('created')['url'] }}</p>
                 <p class="muted" style="margin-top:14px">Manage link (bookmark this to edit later — keep it private):</p>
@@ -77,6 +81,40 @@
                 @endforeach
             </div>
             <p class="muted" style="font-size:0.82rem;margin:8px 0 0">Views per day, last 30 days (built-in analytics)</p>
+        </div>
+
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+                <h2 style="margin:0;font-size:1.2rem">Plan &amp; usage</h2>
+                <span class="muted">{{ $plan['name'] }} · balance <strong style="color:var(--accent)">${{ number_format($usage['balance_cents'] / 100, 2) }}</strong></span>
+            </div>
+            @php($mb = fn ($b) => $b >= 1048576 ? number_format($b / 1048576, 1).' MB' : number_format(max(0, $b) / 1024, 0).' KB')
+            @php($meter = function ($label, $pct, $detail, $over) {
+                $color = $over ? '#b45309' : 'var(--accent)';
+                return '<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:0.88rem"><span>'.$label.'</span><span class="muted">'.$detail.'</span></div>'
+                    .'<div style="height:8px;background:var(--line);border-radius:4px;margin-top:5px;overflow:hidden"><i style="display:block;height:100%;width:'.$pct.'%;background:'.$color.'"></i></div></div>';
+            })
+            {!! $meter(
+                'Build minutes',
+                $usage['build']['pct'],
+                $usage['build']['over']
+                    ? 'free minute used — now metered'
+                    : number_format($usage['build']['free_remaining_ms'] / 1000, 1).'s of free build time left',
+                $usage['build']['over'],
+            ) !!}
+            {!! $meter(
+                'Traffic (views)',
+                $usage['traffic']['pct'],
+                number_format($usage['traffic']['used']).' / '.number_format($usage['traffic']['allowance']).($usage['traffic']['over'] ? ' · over' : ''),
+                $usage['traffic']['over'],
+            ) !!}
+            {!! $meter(
+                'Storage',
+                $usage['storage']['pct'],
+                $mb($usage['storage']['used_bytes']).' / '.number_format($usage['storage']['allowance_bytes'] / 1048576).' MB'.($usage['storage']['over'] ? ' · over' : ''),
+                $usage['storage']['over'],
+            ) !!}
+            <p class="muted" style="font-size:0.8rem;margin:10px 0 0">First build minute is free, then $0.50/min. Traffic and storage over the plan's allowance are billed per the plan. Billing is not live yet.</p>
         </div>
 
         <div class="card">
@@ -165,6 +203,18 @@
                         </select>
                     </div>
                 </div>
+
+                @if (($inputs['type'] ?? '') === 'event')
+                    <fieldset>
+                        <legend>Event details</legend>
+                        <div class="row">
+                            <div class="field"><label for="event_date">Date</label><input type="date" id="event_date" name="event_date" value="{{ old('event_date', $inputs['event_date'] ?? '') }}"></div>
+                            <div class="field"><label for="event_time">Time</label><input type="text" id="event_time" name="event_time" maxlength="60" value="{{ old('event_time', $inputs['event_time'] ?? '') }}"></div>
+                        </div>
+                        <div class="field"><label for="venue">Venue</label><input type="text" id="venue" name="venue" maxlength="160" value="{{ old('venue', $inputs['venue'] ?? '') }}"></div>
+                        <div class="field"><label for="address">Address</label><input type="text" id="address" name="address" maxlength="200" value="{{ old('address', $inputs['address'] ?? '') }}"></div>
+                    </fieldset>
+                @endif
 
                 @if (($inputs['type'] ?? '') === 'sweepstakes')
                     <fieldset>

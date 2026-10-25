@@ -38,6 +38,21 @@ class Site extends Model
 
     public const string TYPE_SWEEPSTAKES = 'sweepstakes';
 
+    public const string TYPE_EVENT = 'event';
+
+    /**
+     * The kinds of microsite the builder offers. Keyed by type; each has a
+     * short label and the lead-capture verb. Add a kind here and in
+     * TemplateCopywriter to extend the product beyond these.
+     *
+     * @var array<string, array{label: string, verb: string}>
+     */
+    public const array TYPES = [
+        self::TYPE_STANDARD => ['label' => 'Promo / landing page', 'verb' => 'Get in touch'],
+        self::TYPE_EVENT => ['label' => 'Event', 'verb' => 'RSVP'],
+        self::TYPE_SWEEPSTAKES => ['label' => 'Sweepstakes / giveaway', 'verb' => 'Enter'],
+    ];
+
     public const string STATUS_DRAFT = 'draft';
 
     public const string STATUS_PUBLISHED = 'published';
@@ -147,6 +162,11 @@ class Site extends Model
     public function isSweepstakes(): bool
     {
         return $this->type === self::TYPE_SWEEPSTAKES;
+    }
+
+    public function isEvent(): bool
+    {
+        return $this->type === self::TYPE_EVENT;
     }
 
     public function isDraft(): bool

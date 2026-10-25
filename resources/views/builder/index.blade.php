@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Microsites in Minutes — promo &amp; sweepstakes pages, published in seconds</title>
-    <meta name="description" content="Describe your promotion and get a polished, mobile-first microsite with a lead form, published to a shareable link in seconds. A faster alternative to template builders.">
+    <title>Microsites in Minutes — one-page sites for promos, events &amp; giveaways</title>
+    <meta name="description" content="Describe what you need and get a polished, mobile-first one-page site — a promo, an event with RSVP, a giveaway, or any landing page — published to a shareable link in seconds. A faster alternative to template builders.">
     <link rel="canonical" href="{{ route('home') }}">
     <style>
         :root { --accent: #0f766e; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --card: #fff; --line: #e7e5e4; }
@@ -48,7 +48,7 @@
     <header>
         <div class="wrap">
             <h1>Microsites in Minutes</h1>
-            <p class="sub">Describe your promotion. Get a polished, mobile-first page with a lead form — published to a shareable link in seconds.</p>
+            <p class="sub">Describe what you need — a promo, an event, a giveaway, any one-page site. Get a polished, mobile-first page with a built-in form, published to a shareable link in seconds.</p>
         </div>
     </header>
 
@@ -67,8 +67,9 @@
             <div class="field">
                 <label>What kind of page?</label>
                 <div class="toggle">
-                    <label><input type="radio" name="type" value="standard" {{ old('type', 'standard') === 'standard' ? 'checked' : '' }}><span>Promo / landing page</span></label>
-                    <label><input type="radio" name="type" value="sweepstakes" {{ old('type') === 'sweepstakes' ? 'checked' : '' }}><span>Sweepstakes / giveaway</span></label>
+                    @foreach ($types as $value => $spec)
+                        <label><input type="radio" name="type" value="{{ $value }}" {{ old('type', 'standard') === $value ? 'checked' : '' }}><span>{{ $spec['label'] }}</span></label>
+                    @endforeach
                 </div>
             </div>
 
@@ -134,6 +135,28 @@
                 </div>
             </fieldset>
 
+            <fieldset id="event" hidden>
+                <legend>Event details</legend>
+                <div class="row">
+                    <div class="field">
+                        <label for="event_date">Date</label>
+                        <input type="date" id="event_date" name="event_date" value="{{ old('event_date') }}">
+                    </div>
+                    <div class="field">
+                        <label for="event_time">Time</label>
+                        <input type="text" id="event_time" name="event_time" maxlength="60" value="{{ old('event_time') }}" placeholder="6:00 PM">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="venue">Venue</label>
+                    <input type="text" id="venue" name="venue" maxlength="160" value="{{ old('venue') }}" placeholder="The Grand Hall">
+                </div>
+                <div class="field">
+                    <label for="address">Address</label>
+                    <input type="text" id="address" name="address" maxlength="200" value="{{ old('address') }}">
+                </div>
+            </fieldset>
+
             <details class="adv">
                 <summary>More options</summary>
                 <div class="row">
@@ -196,7 +219,12 @@
     <script>
         (() => {
             const sweeps = document.getElementById('sweeps');
-            const toggle = () => { sweeps.hidden = document.querySelector('input[name=type]:checked')?.value !== 'sweepstakes'; };
+            const event = document.getElementById('event');
+            const toggle = () => {
+                const type = document.querySelector('input[name=type]:checked')?.value;
+                sweeps.hidden = type !== 'sweepstakes';
+                event.hidden = type !== 'event';
+            };
             document.querySelectorAll('input[name=type]').forEach((r) => r.addEventListener('change', toggle));
             toggle();
 

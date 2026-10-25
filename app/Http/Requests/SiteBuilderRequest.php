@@ -29,7 +29,12 @@ class SiteBuilderRequest extends FormRequest
 
             'business_name' => ['required', 'string', 'min:2', 'max:80'],
             'prompt' => ['required', 'string', 'min:10', 'max:1500'],
-            'type' => ['required', Rule::in([Site::TYPE_STANDARD, Site::TYPE_SWEEPSTAKES])],
+            'type' => ['required', Rule::in([Site::TYPE_STANDARD, Site::TYPE_EVENT, Site::TYPE_SWEEPSTAKES])],
+
+            'event_date' => ['nullable', 'date'],
+            'event_time' => ['nullable', 'string', 'max:60'],
+            'venue' => ['nullable', 'string', 'max:160'],
+            'address' => ['nullable', 'string', 'max:200'],
 
             'offer_headline' => ['nullable', 'string', 'max:120'],
             'cta_label' => ['nullable', 'string', 'max:40'],

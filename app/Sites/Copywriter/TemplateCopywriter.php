@@ -26,13 +26,15 @@ class TemplateCopywriter implements Copywriter
     {
         $business = $this->clean($inputs['business_name'] ?? 'Your Business');
         $prompt = $this->clean($inputs['prompt'] ?? '');
-        $isSweepstakes = ($inputs['type'] ?? Site::TYPE_STANDARD) === Site::TYPE_SWEEPSTAKES;
+        $type = $inputs['type'] ?? Site::TYPE_STANDARD;
 
-        $content = $isSweepstakes
-            ? $this->sweepstakes($business, $prompt, $inputs)
-            : $this->standard($business, $prompt, $inputs);
+        $content = match ($type) {
+            Site::TYPE_SWEEPSTAKES => $this->sweepstakes($business, $prompt, $inputs),
+            Site::TYPE_EVENT => $this->event($business, $prompt, $inputs),
+            default => $this->standard($business, $prompt, $inputs),
+        };
 
-        $content['meta'] = $this->meta($business, $prompt, $isSweepstakes, $content);
+        $content['meta'] = $this->meta($business, $prompt, $type, $content);
 
         return $content;
     }
@@ -159,6 +161,55 @@ class TemplateCopywriter implements Copywriter
 
     /**
      * @param  array<string, mixed>  $inputs
+     * @return array<string, mixed>
+     */
+    protected function event(string $business, string $prompt, array $inputs): array
+    {
+        $date = $this->date($inputs['event_date'] ?? null);
+        $time = $this->clean($inputs['event_time'] ?? '');
+        $venue = $this->clean($inputs['venue'] ?? '');
+        $address = $this->clean($inputs['address'] ?? '');
+        $when = trim(($date?->format('l, F j, Y') ?? '').($time !== '' ? ' · '.$time : ''), ' ·');
+
+        $kicker = trim(($date?->format('M j') ?? 'Event').($venue !== '' ? ' · '.$venue : ''), ' ·');
+
+        return [
+            'hero' => [
+                'kicker' => $kicker,
+                'headline' => $this->firstFilled($inputs['offer_headline'] ?? null, $business),
+                'subhead' => $this->trim($this->firstSentence($prompt) ?: "You're invited.", 160),
+            ],
+            'offer' => [
+                'heading' => 'Details',
+                'body' => $prompt !== '' ? $prompt : "Join {$business}. We'd love to see you there.",
+                'bullets' => array_values(array_filter([
+                    $when !== '' ? 'When: '.$when : null,
+                    $venue !== '' ? 'Where: '.$venue : null,
+                    $address !== '' ? $address : null,
+                ])),
+            ],
+            'about' => $prompt !== '' ? $prompt : "An event from {$business}. RSVP below to save your spot.",
+            'features' => [
+                ['title' => 'When', 'text' => $when !== '' ? $when : 'Date to be announced — RSVP and we will let you know.'],
+                ['title' => 'Where', 'text' => $this->trim(trim($venue.($address !== '' ? ', '.$address : ''), ', ') ?: 'Venue to be announced.', 200)],
+                ['title' => 'RSVP', 'text' => 'Let us know you are coming so we can plan.'],
+            ],
+            'cta' => [
+                'label' => $this->firstFilled($inputs['cta_label'] ?? null, 'RSVP'),
+                'note' => $when !== '' ? "We'll see you on {$when}." : "We'll be in touch with the details.",
+            ],
+            'form' => [
+                'heading' => 'RSVP',
+                'note' => 'Tell us you are coming and we will save you a spot.',
+                'success' => "You're on the list".($when !== '' ? " for {$when}." : '.').' See you there!',
+            ],
+            'contact' => $this->contact($inputs),
+            'rules' => null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
      * @return array{email: ?string, phone: ?string, location: ?string}
      */
     protected function contact(array $inputs): array
@@ -176,10 +227,12 @@ class TemplateCopywriter implements Copywriter
      * @param  array<string, mixed>  $content
      * @return array{title: string, description: string}
      */
-    protected function meta(string $business, string $prompt, bool $isSweepstakes, array $content): array
+    protected function meta(string $business, string $prompt, string $type, array $content): array
     {
         $headline = $content['hero']['headline'] ?? $business;
-        $title = $isSweepstakes ? "{$headline} — {$business}" : $business;
+        $title = ($type === Site::TYPE_STANDARD || $headline === $business)
+            ? $business
+            : "{$headline} — {$business}";
         $description = $this->trim(
             $content['hero']['subhead'] ?: ($prompt !== '' ? $prompt : $business),
             155

@@ -7,6 +7,7 @@ use App\Models\Site;
 use App\Models\Site as SiteModel;
 use App\Sites\HeroArt;
 use App\Sites\SiteComposer;
+use App\Sites\UsageReport;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,6 +49,7 @@ class SiteManageController extends Controller
             'entries' => $site->entries()->latest()->limit(100)->get(),
             'stats' => $this->recentStats($site),
             'plan' => $site->owner->plan(),
+            'usage' => UsageReport::for($site->owner),
             'assets' => $site->assets()->get()->keyBy('slot'),
             'uploadQr' => SiteAssetController::qrFor($site, $token),
             'uploadUrl' => route('microsite.upload', $site->slug).'?t='.$token,
@@ -62,7 +64,11 @@ class SiteManageController extends Controller
         $validated = $request->validate([
             'business_name' => ['required', 'string', 'min:2', 'max:80'],
             'prompt' => ['required', 'string', 'min:10', 'max:1500'],
-            'type' => ['required', Rule::in([SiteModel::TYPE_STANDARD, SiteModel::TYPE_SWEEPSTAKES])],
+            'type' => ['required', Rule::in([SiteModel::TYPE_STANDARD, SiteModel::TYPE_EVENT, SiteModel::TYPE_SWEEPSTAKES])],
+            'event_date' => ['nullable', 'date'],
+            'event_time' => ['nullable', 'string', 'max:60'],
+            'venue' => ['nullable', 'string', 'max:160'],
+            'address' => ['nullable', 'string', 'max:200'],
             'offer_headline' => ['nullable', 'string', 'max:120'],
             'cta_label' => ['nullable', 'string', 'max:40'],
             'location' => ['nullable', 'string', 'max:120'],

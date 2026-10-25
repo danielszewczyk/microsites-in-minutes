@@ -60,7 +60,11 @@ class MakeMicrositeTool extends Tool
             'site' => ['nullable', 'string', 'max:200'],
             'business_name' => [$required, 'string', 'min:2', 'max:80'],
             'prompt' => [$required, 'string', 'min:10', 'max:1500'],
-            'type' => ['nullable', 'in:'.Site::TYPE_STANDARD.','.Site::TYPE_SWEEPSTAKES],
+            'type' => ['nullable', 'in:'.Site::TYPE_STANDARD.','.Site::TYPE_EVENT.','.Site::TYPE_SWEEPSTAKES],
+            'event_date' => ['nullable', 'date'],
+            'event_time' => ['nullable', 'string', 'max:60'],
+            'venue' => ['nullable', 'string', 'max:160'],
+            'address' => ['nullable', 'string', 'max:200'],
             'accent_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'hero_image' => ['nullable', 'in:auto,none,'.implode(',', HeroArt::ILLUSTRATIONS)],
             'offer_headline' => ['nullable', 'string', 'max:120'],
@@ -87,7 +91,7 @@ class MakeMicrositeTool extends Tool
     protected function create(Owner $owner, array $validated, SiteComposer $composer): Response
     {
         try {
-            ['site' => $site, 'token' => $token] = $composer->publish([
+            ['site' => $site, 'token' => $token, 'build' => $build] = $composer->publish([
                 ...$validated,
                 'owner_email' => $owner->email,
                 'owner_name' => $owner->name,
@@ -96,8 +100,11 @@ class MakeMicrositeTool extends Tool
             return Response::error($e->getMessage());
         }
 
+        $built = 'Built in '.number_format($build['ms'] / 1000, 1).'s'
+            .($build['cents'] > 0 ? ' ($'.number_format($build['cents'] / 100, 2).').' : ' (within your free minute).');
+
         return Response::text(
-            "Your site is live at {$site->url()} — open it on screen rather than reading the address aloud. "
+            "Your site is live at {$site->url()} — open it on screen rather than reading the address aloud. {$built} "
             ."Manage it at {$this->manageUrl($site, $token)}"
         );
     }
@@ -153,8 +160,12 @@ class MakeMicrositeTool extends Tool
             'prompt' => $schema->string()
                 ->description('One or two plain sentences on what the promo is and who it is for. Needed for a new site.'),
             'type' => $schema->string()
-                ->enum([Site::TYPE_STANDARD, Site::TYPE_SWEEPSTAKES])
-                ->description('standard for a promo/landing page, sweepstakes for a giveaway. Defaults to standard.'),
+                ->enum([Site::TYPE_STANDARD, Site::TYPE_EVENT, Site::TYPE_SWEEPSTAKES])
+                ->description('standard for a promo/landing page, event for an event with an RSVP, sweepstakes for a giveaway. Defaults to standard.'),
+            'event_date' => $schema->string()->description('Event: date (YYYY-MM-DD).'),
+            'event_time' => $schema->string()->description('Event: time, e.g. 6:00 PM.'),
+            'venue' => $schema->string()->description('Event: venue name.'),
+            'address' => $schema->string()->description('Event: address.'),
             'accent_color' => $schema->string()
                 ->description('Optional hex colour like #0f766e that suits the business.'),
             'hero_image' => $schema->string()

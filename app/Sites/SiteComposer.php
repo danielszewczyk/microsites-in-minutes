@@ -2,6 +2,7 @@
 
 namespace App\Sites;
 
+use App\Models\BuildEvent;
 use App\Models\Owner;
 use App\Models\Site;
 use App\Sites\Copywriter\Copywriter;
@@ -44,6 +45,8 @@ class SiteComposer
         $inputs = $this->normalise($input);
         $token = Str::random(40);
 
+        $start = microtime(true);
+
         $site = Site::query()->create([
             'owner_id' => $owner->id,
             'slug' => $this->freeSlug($inputs['business_name']),
@@ -58,7 +61,9 @@ class SiteComposer
             'published_at' => now(),
         ]);
 
-        return ['site' => $site, 'token' => $token];
+        $build = $this->meter($owner, $site, BuildEvent::KIND_CREATE, $start);
+
+        return ['site' => $site, 'token' => $token, 'build' => $build];
     }
 
     /**
@@ -71,7 +76,9 @@ class SiteComposer
     {
         $inputs = $this->normalise([...$site->inputs, ...$input]);
 
-        return DB::transaction(function () use ($site, $inputs): Site {
+        $start = microtime(true);
+
+        $site = DB::transaction(function () use ($site, $inputs): Site {
             $site = Site::query()->lockForUpdate()->findOrFail($site->id);
 
             $site->update([
@@ -83,6 +90,26 @@ class SiteComposer
 
             return $site;
         });
+
+        $this->meter($site->owner, $site, BuildEvent::KIND_REGENERATE, $start);
+
+        return $site;
+    }
+
+    /**
+     * Time a build, store it on the site, and record it against the owner's
+     * balance. Returns the build's duration and cost.
+     *
+     * @return array{ms: int, cents: int}
+     */
+    protected function meter(Owner $owner, Site $site, string $kind, float $start): array
+    {
+        $ms = (int) round((microtime(true) - $start) * 1000);
+        $event = BuildMeter::record($owner, $site, $kind, $ms);
+
+        $site->forceFill(['last_build_ms' => $ms])->save();
+
+        return ['ms' => $ms, 'cents' => $event->cost_cents];
     }
 
     /**
@@ -104,8 +131,8 @@ class SiteComposer
      */
     protected function normalise(array $input): array
     {
-        $type = ($input['type'] ?? Site::TYPE_STANDARD) === Site::TYPE_SWEEPSTAKES
-            ? Site::TYPE_SWEEPSTAKES
+        $type = in_array($input['type'] ?? '', [Site::TYPE_SWEEPSTAKES, Site::TYPE_EVENT], true)
+            ? $input['type']
             : Site::TYPE_STANDARD;
 
         $inputs = [
@@ -123,6 +150,15 @@ class SiteComposer
             'remove_branding' => (bool) ($input['remove_branding'] ?? false),
             'custom_domain' => $this->str($input['custom_domain'] ?? '', 120),
         ];
+
+        if ($type === Site::TYPE_EVENT) {
+            $inputs += [
+                'event_date' => $this->str($input['event_date'] ?? '', 40),
+                'event_time' => $this->str($input['event_time'] ?? '', 60),
+                'venue' => $this->str($input['venue'] ?? '', 160),
+                'address' => $this->str($input['address'] ?? '', 200),
+            ];
+        }
 
         if ($type === Site::TYPE_SWEEPSTAKES) {
             $inputs += [

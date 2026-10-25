@@ -44,6 +44,23 @@ class GeneratorTest extends TestCase
         $this->assertNotEmpty($content['meta']['title']);
     }
 
+    public function test_event_content_has_rsvp_and_no_rules(): void
+    {
+        $content = (new TemplateCopywriter)->generate([
+            'business_name' => 'The Gallery',
+            'prompt' => 'An opening night for our new exhibition.',
+            'type' => 'event',
+            'event_date' => '2026-12-05',
+            'event_time' => '6:00 PM',
+            'venue' => 'The Grand Hall',
+        ]);
+
+        $this->assertNull($content['rules']);
+        $this->assertSame('RSVP', $content['form']['heading']);
+        $this->assertStringContainsString('The Grand Hall', $content['hero']['kicker']);
+        $this->assertStringContainsString('December 5, 2026', implode(' ', $content['offer']['bullets']));
+    }
+
     public function test_hero_art_is_suggested_from_the_prompt(): void
     {
         $this->assertSame('smile', HeroArt::suggestFor('a dental practice offering cosmetic dentistry'));

@@ -46,6 +46,14 @@ class Owner extends Model
     }
 
     /**
+     * @return HasMany<BuildEvent, $this>
+     */
+    public function buildEvents(): HasMany
+    {
+        return $this->hasMany(BuildEvent::class);
+    }
+
+    /**
      * The limits and features of this owner's current plan.
      *
      * @return array<string, mixed>
