@@ -25,10 +25,14 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         /*
-         * Behind Cloud's load balancer, trust the proxy so the app sees the
-         * real client IP (used for rate limiting) and the https scheme.
+         * Behind Cloud's load balancer, trust the proxy for the real client IP
+         * (rate limiting), port and scheme — but NOT X-Forwarded-Host, so a
+         * spoofed host header cannot poison generated URLs or the page cache.
          */
-        $middleware->trustProxies(at: '*');
+        $middleware->trustProxies(
+            at: '*',
+            headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_X_FORWARDED_PROTO,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

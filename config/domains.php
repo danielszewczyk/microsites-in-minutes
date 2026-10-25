@@ -21,4 +21,14 @@ return [
     // Cloudflare for SaaS fallback origin / custom-hostname target.
     'cname_target' => env('VANITY_CNAME_TARGET', 'connect.micrositesinminutes.com'),
 
+    // Hosts a customer may never claim (our own domains), so a vanity domain
+    // cannot take over the app's homepage. Compared after normalisation
+    // (lower-case, no leading www).
+    'reserved' => array_values(array_filter([
+        'localhost',
+        'micrositesinminutes.com',
+        parse_url((string) env('APP_URL'), PHP_URL_HOST),
+        env('VANITY_CNAME_TARGET', 'connect.micrositesinminutes.com'),
+    ])),
+
 ];

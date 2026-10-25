@@ -83,4 +83,18 @@ class Domain extends Model
 
         return preg_match('/^(?=.{4,253}$)([a-z0-9](-?[a-z0-9])*\.)+[a-z]{2,}$/', $value) === 1 ? $value : null;
     }
+
+    /**
+     * A host nobody may claim (our own domains), so a vanity domain cannot take
+     * over the app's homepage.
+     */
+    public static function isReserved(string $domain): bool
+    {
+        $reserved = array_map(
+            fn (string $h): string => (string) preg_replace('/^www\./', '', strtolower(trim($h))),
+            (array) config('domains.reserved', []),
+        );
+
+        return in_array($domain, $reserved, true);
+    }
 }

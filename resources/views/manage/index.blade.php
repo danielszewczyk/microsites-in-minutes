@@ -68,6 +68,14 @@
             <div class="card ok"><p style="margin:0">{{ session('status') }}</p></div>
         @endif
 
+        @if ($site->isDraft())
+            <div class="card" style="border-color:#b45309">
+                <h2 style="margin-top:0;font-size:1.2rem">This site is a draft</h2>
+                <p class="muted" style="margin-top:0">It's not indexed and isn't accepting entries. Review it, then publish when you're ready.</p>
+                <form method="post" action="{{ route('microsite.publish', $site->slug) }}">@csrf<button class="btn" type="submit">Publish &amp; go live</button></form>
+            </div>
+        @endif
+
         <div class="card">
             <div class="stats">
                 <div class="stat"><b>{{ number_format($site->view_count) }}</b><span>views</span></div>

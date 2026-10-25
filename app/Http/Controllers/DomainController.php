@@ -33,11 +33,11 @@ class DomainController extends Controller
             return back()->withErrors(['domain' => 'Enter a domain like submityoursmile.com.']);
         }
 
-        $taken = Domain::query()->where('domain', $domain)->exists();
+        $available = ! Domain::query()->where('domain', $domain)->exists() && ! Domain::isReserved($domain);
 
         return back()->with('domain_search', [
             'domain' => $domain,
-            'available' => ! $taken,
+            'available' => $available,
             'price_cents' => (int) config('domains.price_cents'),
         ]);
     }
@@ -52,6 +52,10 @@ class DomainController extends Controller
 
         if ($domain === null) {
             return back()->withErrors(['domain' => 'That domain does not look right.']);
+        }
+
+        if (Domain::isReserved($domain)) {
+            return back()->withErrors(['domain' => 'That domain is not available.']);
         }
 
         if (Domain::query()->where('domain', $domain)->exists()) {
@@ -103,8 +107,12 @@ class DomainController extends Controller
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
         $this->authorizeManage($request, $site);
+        $this->ensureAllowed($site);
 
         $domain = $site->domains()->firstOrFail();
+
+        abort_unless($domain->status === Domain::FAILED, 422, 'This domain is not in a failed state.');
+
         $domain->update(['status' => Domain::REGISTERING]);
         $this->provision($domain);
 

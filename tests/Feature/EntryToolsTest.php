@@ -28,11 +28,25 @@ class EntryToolsTest extends TestCase
     {
         Http::fake();
         $site = Site::factory()->create();
-        $site->update(['settings' => [...$site->settings, 'webhook_url' => 'https://hooks.example.com/abc']]);
+        // A public IP literal so the SSRF guard allows it without live DNS.
+        $site->update(['settings' => [...$site->settings, 'webhook_url' => 'https://1.1.1.1/hook']]);
 
         $this->postJson($site->url().'/enter', ['name' => 'Jamie', 'email' => 'jamie@example.com'])->assertOk();
 
-        Http::assertSent(fn ($request) => $request->url() === 'https://hooks.example.com/abc' && $request['name'] === 'Jamie');
+        Http::assertSent(fn ($request) => $request->url() === 'https://1.1.1.1/hook' && $request['name'] === 'Jamie');
+    }
+
+    public function test_webhook_to_a_private_or_loopback_host_is_blocked(): void
+    {
+        Http::fake();
+        $site = Site::factory()->create();
+
+        foreach (['http://127.0.0.1/x', 'http://[::1]/x', 'http://169.254.169.254/latest', 'http://10.0.0.5/x', 'http://[::ffff:127.0.0.1]/x'] as $bad) {
+            $site->update(['settings' => [...$site->settings, 'webhook_url' => $bad]]);
+            $this->postJson($site->url().'/enter', ['name' => 'Jamie', 'email' => 'a'.md5($bad).'@example.com'])->assertOk();
+        }
+
+        Http::assertNothingSent();
     }
 
     public function test_confirmation_holds_the_entry_until_the_link_is_clicked(): void

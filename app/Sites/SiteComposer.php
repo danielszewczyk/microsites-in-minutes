@@ -215,7 +215,7 @@ class SiteComposer
             'verify_emails' => (bool) ($inputs['verify_emails'] ?? false),
             'verify_phones' => (bool) ($inputs['verify_phones'] ?? false),
             'require_confirmation' => (bool) ($inputs['require_confirmation'] ?? false),
-            'webhook_url' => ($inputs['webhook_url'] ?? '') ?: null,
+            'webhook_url' => $owner->can('integrations') ? (($inputs['webhook_url'] ?? '') ?: null) : null,
         ];
     }
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="{{ $site->isDraft() ? 'noindex, nofollow' : 'index, follow' }}">
     <title>Official Rules — {{ $content['hero']['headline'] ?? $site->inputs['business_name'] }}</title>
     <meta name="description" content="Official rules, eligibility and free method of entry.">
     <link rel="icon" href="{{ route('microsite.favicon', $site->slug) }}" type="image/svg+xml">

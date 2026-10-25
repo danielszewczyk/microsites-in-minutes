@@ -183,12 +183,13 @@ class Site extends Model
      */
     public function version(): string
     {
-        $assets = $this->relationLoaded('assets') || $this->exists
-            ? $this->assets()->pluck('updated_at', 'slot')->toJson()
-            : '';
+        // Based only on what the owner can change (content, settings, status,
+        // uploaded assets) — never on updated_at or the view/entry counters, so
+        // a visit never changes the version (which would loop the self-refresh
+        // and bust the HTML cache on every view).
+        $assets = $this->exists ? $this->assets()->pluck('updated_at', 'slot')->toJson() : '';
 
-        return (string) $this->updated_at?->getTimestamp()
-            .'-'.substr(md5((string) json_encode($this->content).json_encode($this->settings).$assets), 0, 12);
+        return substr(md5($this->status.'|'.json_encode($this->content).'|'.json_encode($this->settings).'|'.$assets), 0, 16);
     }
 
     public function url(): string

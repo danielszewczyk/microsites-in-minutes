@@ -157,7 +157,7 @@
                     <p class="msg err">{{ $isDraft ? 'This is a draft preview — the form is disabled until it goes live.' : 'Entries are closed for this promotion.' }}</p>
                 @endif
 
-                <form class="entry" id="entry-form" method="post" action="{{ route('microsite.enter', $site->slug) }}" {{ $acceptsEntries ? '' : 'hidden' }}>
+                <form class="entry" id="entry-form" method="post" action="{{ route('microsite.enter', $site->slug, absolute: false) }}" {{ $acceptsEntries ? '' : 'hidden' }}>
                     <div>
                         <label for="f-name">Your name</label>
                         <input type="text" id="f-name" name="name" maxlength="80" required autocomplete="name">

@@ -46,9 +46,10 @@ class MicrositeController extends Controller
     public function showForSite(Request $request, Site $site): Response
     {
         $version = $site->version();
+        $host = md5($request->getHost());
 
         $html = Cache::remember(
-            "site:{$site->id}:{$version}",
+            "site:{$site->id}:{$host}:{$version}",
             now()->addHour(),
             fn (): string => view('microsite.show', $this->viewData($site))->render(),
         );
@@ -58,6 +59,9 @@ class MicrositeController extends Controller
         return response($html)->withHeaders([
             'Content-Type' => 'text/html; charset=UTF-8',
             'Cache-Control' => 'public, max-age=60',
+            'X-Content-Type-Options' => 'nosniff',
+            'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            'X-Frame-Options' => 'SAMEORIGIN',
         ]);
     }
 
@@ -84,8 +88,10 @@ class MicrositeController extends Controller
         $seconds = (int) round((float) $request->input('seconds', 0));
 
         if ($seconds >= 1 && $seconds <= 1800) {
-            Site::query()->whereKey($site->id)->increment('dwell_ms_total', $seconds * 1000);
-            Site::query()->whereKey($site->id)->increment('dwell_count');
+            Site::withoutTimestamps(function () use ($site, $seconds): void {
+                Site::query()->whereKey($site->id)->increment('dwell_ms_total', $seconds * 1000);
+                Site::query()->whereKey($site->id)->increment('dwell_count');
+            });
         }
 
         return response()->noContent();
@@ -198,7 +204,7 @@ class MicrositeController extends Controller
             'confirmed_at' => $needsConfirmation ? null : now(),
         ]);
 
-        $site->increment('entry_count');
+        Site::withoutTimestamps(fn () => $site->increment('entry_count'));
 
         $day = Carbon::today()->toDateString();
         RecordSiteHit::bump($site->id, $day, 'entries');

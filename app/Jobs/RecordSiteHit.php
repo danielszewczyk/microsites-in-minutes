@@ -33,7 +33,7 @@ class RecordSiteHit implements ShouldQueue
 
     public function handle(): void
     {
-        Site::query()->whereKey($this->siteId)->increment('view_count');
+        Site::withoutTimestamps(fn () => Site::query()->whereKey($this->siteId)->increment('view_count'));
 
         self::bump($this->siteId, $this->day, 'views');
         self::breakdowns($this->siteId, $this->dims, 'views');

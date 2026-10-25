@@ -68,6 +68,21 @@ class SiteManageController extends Controller
         ]);
     }
 
+    /**
+     * Flip a draft to published (still on its own URL — not a real domain).
+     */
+    public function publish(Request $request, string $slug): RedirectResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        if ($site->isDraft()) {
+            $site->update(['status' => Site::STATUS_PUBLISHED, 'published_at' => $site->published_at ?? now()]);
+        }
+
+        return back()->with('status', 'Your site is now live and accepting entries.');
+    }
+
     public function regenerate(Request $request, string $slug, SiteComposer $composer): RedirectResponse
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
@@ -123,7 +138,7 @@ class SiteManageController extends Controller
 
         return response()->streamDownload(function () use ($site): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Email status', 'Phone', 'Phone status', 'Message', 'Source', 'Campaign', 'Device', 'Country', 'IP', 'User agent', 'Free entry (AMOE)']);
+            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Email status', 'Confirmed', 'Phone', 'Phone status', 'Message', 'Source', 'Campaign', 'Device', 'Country', 'IP', 'User agent', 'Free entry (AMOE)']);
 
             $site->entries()->oldest()->chunk(500, function ($chunk) use ($out): void {
                 foreach ($chunk as $entry) {
@@ -132,6 +147,7 @@ class SiteManageController extends Controller
                         $entry->name,
                         $entry->email,
                         $entry->email_status,
+                        $entry->confirmed_at ? 'yes' : 'no',
                         $entry->phone,
                         $entry->phone_status,
                         $entry->message,
