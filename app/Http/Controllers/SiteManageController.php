@@ -53,6 +53,7 @@ class SiteManageController extends Controller
             'usage' => UsageReport::for($site->owner),
             'breakdowns' => $this->breakdowns($site),
             'domain' => $site->domain(),
+            'links' => $site->shortLinks()->latest()->get(),
             'assets' => $site->assets()->get()->keyBy('slot'),
             'uploadQr' => SiteAssetController::qrFor($site, $token),
             'uploadUrl' => route('microsite.upload', $site->slug).'?t='.$token,

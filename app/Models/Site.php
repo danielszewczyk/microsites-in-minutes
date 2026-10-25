@@ -133,6 +133,14 @@ class Site extends Model
         return $this->domains()->latest('id')->first();
     }
 
+    /**
+     * @return HasMany<ShortLink, $this>
+     */
+    public function shortLinks(): HasMany
+    {
+        return $this->hasMany(ShortLink::class);
+    }
+
     public function assetFolder(): string
     {
         return 'sites/'.$this->slug;

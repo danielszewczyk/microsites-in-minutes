@@ -127,6 +127,46 @@
         </div>
 
         <div class="card">
+            <h2 style="margin-top:0;font-size:1.2rem">Share links &amp; UTM builder</h2>
+            <p class="muted" style="margin-top:0">Tag a link so you can see which channel it came from in the report, and get a short link to share.</p>
+
+            <div class="field" style="margin-bottom:10px">
+                <label>Tagged link preview</label>
+                <input type="text" id="utm-preview" readonly value="{{ $site->url() }}" style="font-family:ui-monospace,monospace;font-size:0.82rem">
+                <button type="button" class="btn" id="utm-copy" style="margin-top:8px;padding:9px 16px">Copy</button>
+            </div>
+
+            <form method="post" action="{{ route('microsite.links.store', $site->slug) }}">
+                @csrf
+                <div class="row">
+                    <div class="field"><label for="l-source">Source</label><input type="text" id="l-source" name="source" maxlength="40" placeholder="facebook"></div>
+                    <div class="field"><label for="l-medium">Medium</label><input type="text" id="l-medium" name="medium" maxlength="40" placeholder="social"></div>
+                </div>
+                <div class="row">
+                    <div class="field"><label for="l-campaign">Campaign</label><input type="text" id="l-campaign" name="campaign" maxlength="60" placeholder="fall-launch"></div>
+                    <div class="field"><label for="l-label">Label (optional)</label><input type="text" id="l-label" name="label" maxlength="60" placeholder="October FB post"></div>
+                </div>
+                <button type="submit" class="btn">Create short link</button>
+            </form>
+
+            @if ($links->isNotEmpty())
+                <table style="margin-top:18px">
+                    <thead><tr><th>Short link</th><th>Tags</th><th>Clicks</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach ($links as $link)
+                            <tr>
+                                <td><a href="{{ $link->shortUrl() }}" target="_blank" rel="noopener">{{ $link->shortUrl() }}</a>@if ($link->label)<br><span class="muted" style="font-size:0.8rem">{{ $link->label }}</span>@endif</td>
+                                <td class="muted" style="font-size:0.82rem">{{ collect([$link->source, $link->medium, $link->campaign])->filter()->implode(' · ') ?: '—' }}</td>
+                                <td>{{ number_format($link->clicks) }}</td>
+                                <td><form method="post" action="{{ route('microsite.links.destroy', [$site->slug, $link]) }}">@csrf<button class="rm" type="submit">Delete</button></form></td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </div>
+
+        <div class="card">
             <h2 style="margin-top:0;font-size:1.2rem">Where it's coming from</h2>
             <p class="muted" style="margin-top:0">Views, entries and conversion by source — counted on our side, no cookies or consent banner.</p>
             @php($reportTable = function ($label, $rows) {
@@ -320,5 +360,29 @@
             </form>
         </div>
     </div>
+
+    <script>
+        (() => {
+            const base = @json($site->url());
+            const preview = document.getElementById('utm-preview');
+            const fields = { utm_source: 'l-source', utm_medium: 'l-medium', utm_campaign: 'l-campaign' };
+            const build = () => {
+                const params = new URLSearchParams();
+                for (const [key, id] of Object.entries(fields)) {
+                    const v = (document.getElementById(id)?.value || '').trim();
+                    if (v) { params.set(key, v); }
+                }
+                const q = params.toString();
+                preview.value = q ? base + '?' + q : base;
+            };
+            Object.values(fields).forEach((id) => document.getElementById(id)?.addEventListener('input', build));
+            build();
+            document.getElementById('utm-copy')?.addEventListener('click', async () => {
+                try { await navigator.clipboard.writeText(preview.value); } catch (e) { preview.select(); document.execCommand('copy'); }
+                const b = document.getElementById('utm-copy');
+                b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
+            });
+        })();
+    </script>
 </body>
 </html>

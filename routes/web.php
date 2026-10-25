@@ -3,6 +3,7 @@
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\MicrositeController;
 use App\Http\Controllers\SeoController;
+use App\Http\Controllers\ShortLinkController;
 use App\Http\Controllers\SiteAssetController;
 use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\SiteManageController;
@@ -21,6 +22,15 @@ Route::post('/sites', [SiteBuilderController::class, 'store'])
  */
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
 Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots');
+
+/*
+ * Short links: a public redirect that counts the click and forwards to the site
+ * with the link's UTM tags.
+ */
+Route::get('/l/{code}', [ShortLinkController::class, 'redirect'])
+    ->where('code', '[A-Za-z0-9]{1,16}')
+    ->middleware('throttle:120,1,link-redirect')
+    ->name('link.redirect');
 
 /*
  * A published microsite and everything that hangs off it. The slug is the only
@@ -82,4 +92,12 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:20,1,domain-activate')->name('microsite.domain.activate');
     Route::post('/domain/remove', [DomainController::class, 'remove'])
         ->middleware('throttle:20,1,domain-remove')->name('microsite.domain.remove');
+
+    /*
+     * Share links: build a UTM-tagged short link, or remove one.
+     */
+    Route::post('/links', [ShortLinkController::class, 'store'])
+        ->middleware('throttle:30,1,link-store')->name('microsite.links.store');
+    Route::post('/links/{link}/delete', [ShortLinkController::class, 'destroy'])
+        ->middleware('throttle:30,1,link-delete')->name('microsite.links.destroy');
 });
