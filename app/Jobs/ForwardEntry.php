@@ -106,8 +106,13 @@ class ForwardEntry implements ShouldQueue
             return false;
         }
 
-        // Normalise an IPv4-mapped IPv6 address (::ffff:a.b.c.d) to its IPv4.
-        if (strlen($bin) === 16 && str_starts_with($bin, str_repeat("\x00", 10)."\xff\xff")) {
+        // Normalise an embedded IPv4 to its IPv4 form: IPv4-mapped (::ffff:a.b.c.d)
+        // and the NAT64 well-known prefix (64:ff9b::a.b.c.d), so neither hides a
+        // private target.
+        if (strlen($bin) === 16 && (
+            str_starts_with($bin, str_repeat("\x00", 10)."\xff\xff")
+            || str_starts_with($bin, "\x00\x64\xff\x9b".str_repeat("\x00", 8))
+        )) {
             $ip = (string) inet_ntop(substr($bin, 12));
         }
 

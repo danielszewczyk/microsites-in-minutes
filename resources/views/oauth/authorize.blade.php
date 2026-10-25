@@ -28,4 +28,4 @@
         <button type="submit" class="btn" style="background:transparent;color:var(--muted);border:1px solid var(--line)">Cancel</button>
     </form>
 @endsection
-@section('foot')You can revoke access any time from your account.@endsection
+@section('foot')You can disconnect this connector at any time.@endsection

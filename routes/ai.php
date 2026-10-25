@@ -15,4 +15,4 @@ Mcp::oauthRoutes();
  * The connector endpoint. Each connected account owns the sites it creates.
  */
 Mcp::web('/mcp', MicrositesServer::class)
-    ->middleware('auth:api');
+    ->middleware(['auth:api', 'verified']);

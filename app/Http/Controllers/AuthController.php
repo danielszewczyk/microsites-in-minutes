@@ -25,6 +25,8 @@ class AuthController extends Controller
 
     public function register(Request $request): RedirectResponse
     {
+        $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
+
         $data = $request->validate([
             'name' => ['nullable', 'string', 'max:80'],
             'email' => ['required', 'email', 'max:120', 'unique:owners,email'],
@@ -33,12 +35,13 @@ class AuthController extends Controller
 
         $owner = Owner::query()->create([
             'name' => $data['name'] ?? null,
-            'email' => Str::lower($data['email']),
+            'email' => $data['email'],
             'password' => $data['password'],
         ]);
 
         event(new Registered($owner));
         Auth::login($owner);
+        $request->session()->regenerate();
 
         return redirect()->route('verification.notice');
     }

@@ -51,6 +51,10 @@ class MakeMicrositeTool extends Tool
             return Response::error('No connected account. Reconnect the Microsites in Minutes connector and try again.');
         }
 
+        if (! $owner->hasVerifiedEmail()) {
+            return Response::error('Please verify your email before publishing. Check your inbox for the verification link, then try again.');
+        }
+
         $updating = trim((string) $request->get('site', '')) !== '';
         $required = $updating ? 'sometimes' : 'required';
         $isSweepstakes = $request->get('type') === Site::TYPE_SWEEPSTAKES;
