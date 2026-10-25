@@ -1,0 +1,1 @@
+<svg viewBox="0 0 200 200" role="img" aria-label="A leaf"><path d="M40 160 C40 80 90 40 165 35 C160 110 120 160 40 160 Z" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/><path d="M40 160 C80 120 110 90 150 50" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>

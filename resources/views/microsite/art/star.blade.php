@@ -1,0 +1,1 @@
+<svg viewBox="0 0 200 200" role="img" aria-label="A star"><path d="M100 25 L122 75 L177 80 L135 115 L148 170 L100 142 L52 170 L65 115 L23 80 L78 75 Z" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/></svg>

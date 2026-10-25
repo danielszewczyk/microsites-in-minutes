@@ -1,0 +1,183 @@
+<?php
+
+namespace App\Sites;
+
+use App\Models\Owner;
+use App\Models\Site;
+use App\Sites\Copywriter\Copywriter;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+/**
+ * Builds and updates microsites from an owner's inputs: finds or creates the
+ * owner, enforces the plan's site cap, generates the content and settings, and
+ * mints the manage token that proves control of a site. The caller gets the
+ * plain token once, on create; only its hash is stored.
+ */
+class SiteComposer
+{
+    public function __construct(protected Copywriter $copywriter) {}
+
+    /**
+     * Publish a new microsite.
+     *
+     * @param  array<string, mixed>  $input  Validated builder input, including owner_email.
+     * @return array{site: Site, token: string}
+     *
+     * @throws \RuntimeException when the owner is over their plan's site cap or the global cap is hit.
+     */
+    public function publish(array $input): array
+    {
+        if (Site::query()->count() >= Site::MAX) {
+            throw new \RuntimeException('The site limit has been reached; no more can be published right now.');
+        }
+
+        $owner = $this->owner($input);
+
+        if (! Plans::canPublishAnother($owner)) {
+            throw new \RuntimeException(
+                'Your '.$owner->plan()['name'].' plan allows '.$owner->plan()['max_sites']
+                .' site(s). Upgrade or remove a site to publish another.'
+            );
+        }
+
+        $inputs = $this->normalise($input);
+        $token = Str::random(40);
+
+        $site = Site::query()->create([
+            'owner_id' => $owner->id,
+            'slug' => $this->freeSlug($inputs['business_name']),
+            'manage_token_hash' => hash('sha256', $token),
+            'type' => $inputs['type'],
+            'status' => 'published',
+            'inputs' => $inputs,
+            'content' => $this->copywriter->generate($inputs),
+            'settings' => $this->settings($inputs, $owner),
+            'published_at' => now(),
+        ]);
+
+        return ['site' => $site, 'token' => $token];
+    }
+
+    /**
+     * Regenerate a site in place from edited inputs: same slug, same link, same
+     * manage token. An open page refreshes itself to the new version.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    public function regenerate(Site $site, array $input): Site
+    {
+        $inputs = $this->normalise([...$site->inputs, ...$input]);
+
+        return DB::transaction(function () use ($site, $inputs): Site {
+            $site = Site::query()->lockForUpdate()->findOrFail($site->id);
+
+            $site->update([
+                'type' => $inputs['type'],
+                'inputs' => $inputs,
+                'content' => $this->copywriter->generate($inputs),
+                'settings' => $this->settings($inputs, $site->owner),
+            ]);
+
+            return $site;
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    protected function owner(array $input): Owner
+    {
+        return Owner::query()->firstOrCreate(
+            ['email' => Str::lower(trim((string) $input['owner_email']))],
+            ['name' => $input['owner_name'] ?? null],
+        );
+    }
+
+    /**
+     * Normalise and bound the builder input into the stored inputs document.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    protected function normalise(array $input): array
+    {
+        $type = ($input['type'] ?? Site::TYPE_STANDARD) === Site::TYPE_SWEEPSTAKES
+            ? Site::TYPE_SWEEPSTAKES
+            : Site::TYPE_STANDARD;
+
+        $inputs = [
+            'business_name' => $this->str($input['business_name'] ?? '', 80),
+            'prompt' => $this->str($input['prompt'] ?? '', 1500),
+            'type' => $type,
+            'offer_headline' => $this->str($input['offer_headline'] ?? '', 120),
+            'cta_label' => $this->str($input['cta_label'] ?? '', 40),
+            'location' => $this->str($input['location'] ?? '', 120),
+            'contact_email' => $this->str($input['contact_email'] ?? '', 120),
+            'contact_phone' => $this->str($input['contact_phone'] ?? '', 40),
+            'accent_color' => $this->hex($input['accent_color'] ?? null),
+            'hero_image' => $this->str($input['hero_image'] ?? 'auto', 40),
+            'ga4_id' => $this->str($input['ga4_id'] ?? '', 40),
+            'remove_branding' => (bool) ($input['remove_branding'] ?? false),
+            'custom_domain' => $this->str($input['custom_domain'] ?? '', 120),
+        ];
+
+        if ($type === Site::TYPE_SWEEPSTAKES) {
+            $inputs += [
+                'sponsor' => $this->str($input['sponsor'] ?? '', 160),
+                'prize' => $this->str($input['prize'] ?? '', 300),
+                'prize_value' => $this->str($input['prize_value'] ?? '', 60),
+                'start_date' => $this->str($input['start_date'] ?? '', 40),
+                'end_date' => $this->str($input['end_date'] ?? '', 40),
+                'eligibility' => $this->str($input['eligibility'] ?? '', 400),
+                'amoe' => $this->str($input['amoe'] ?? '', 800),
+            ];
+        }
+
+        return $inputs;
+    }
+
+    /**
+     * @param  array<string, mixed>  $inputs
+     * @return array<string, mixed>
+     */
+    protected function settings(array $inputs, Owner $owner): array
+    {
+        $hero = $inputs['hero_image'];
+
+        if ($hero === 'auto' || $hero === '') {
+            $hero = HeroArt::suggestFor($inputs['business_name'].' '.$inputs['prompt']);
+        } elseif ($hero === 'none') {
+            $hero = null;
+        } elseif (! in_array($hero, HeroArt::ILLUSTRATIONS, true)) {
+            $hero = HeroArt::suggestFor($inputs['business_name'].' '.$inputs['prompt']);
+        }
+
+        return [
+            'accent_color' => $inputs['accent_color'] ?? Site::DEFAULT_ACCENT,
+            'hero_image' => $hero,
+            'ga4_id' => $owner->can('analytics') ? ($inputs['ga4_id'] ?: null) : null,
+            'remove_branding' => $inputs['remove_branding'] && $owner->can('remove_branding'),
+            'custom_domain' => $owner->can('custom_domain') ? ($inputs['custom_domain'] ?: null) : null,
+        ];
+    }
+
+    protected function freeSlug(string $businessName): string
+    {
+        do {
+            $slug = Site::slugFor($businessName);
+        } while (Site::query()->where('slug', $slug)->exists());
+
+        return $slug;
+    }
+
+    protected function str(mixed $value, int $max): string
+    {
+        return Str::limit(trim(preg_replace('/\s+/', ' ', (string) $value) ?? ''), $max, '');
+    }
+
+    protected function hex(mixed $value): ?string
+    {
+        return is_string($value) && preg_match('/^#[0-9a-fA-F]{6}$/', $value) === 1 ? $value : Site::DEFAULT_ACCENT;
+    }
+}

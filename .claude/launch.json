@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "mim", "runtimeExecutable": "php", "runtimeArgs": ["artisan", "serve", "--port=8731"], "port": 8731 }
+  ]
+}

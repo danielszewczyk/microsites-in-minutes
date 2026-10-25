@@ -1,0 +1,1 @@
+<svg viewBox="0 0 200 200" role="img" aria-label="A heart"><path d="M100 170 C40 125 20 95 30 65 C40 35 80 30 100 60 C120 30 160 35 170 65 C180 95 160 125 100 170 Z" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/></svg>
