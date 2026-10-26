@@ -85,19 +85,19 @@
 
         <div class="card">
             <div class="stats">
-                <div class="stat"><b>{{ number_format($site->view_count) }}</b><span>views</span></div>
-                <div class="stat"><b>{{ number_format($site->entry_count) }}</b><span>entries</span></div>
-                <div class="stat"><b>{{ $site->view_count > 0 ? number_format($site->entry_count / $site->view_count * 100, 1) : '0.0' }}%</b><span>conversion</span></div>
+                <div class="stat"><b id="stat-views">{{ number_format($site->view_count) }}</b><span>views</span></div>
+                <div class="stat"><b id="stat-entries">{{ number_format($site->entry_count) }}</b><span>entries</span></div>
+                <div class="stat"><b id="stat-conv">{{ $site->view_count > 0 ? number_format($site->entry_count / $site->view_count * 100, 1) : '0.0' }}%</b><span>conversion</span></div>
                 @php($avg = $site->avgDwellSeconds())
-                <div class="stat"><b>{{ $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—' }}</b><span>avg. time on page</span></div>
+                <div class="stat"><b id="stat-dwell">{{ $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—' }}</b><span>avg. time on page</span></div>
             </div>
             @php($peak = max(1, collect($stats)->max('views')))
-            <div class="bars" title="Views per day, last 30 days">
+            <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" title="Views per day, last 30 days">
                 @foreach ($stats as $day)
                     <i style="height: {{ max(2, (int) round($day['views'] / $peak * 60)) }}px" title="{{ $day['date'] }}: {{ $day['views'] }} views, {{ $day['entries'] }} entries"></i>
                 @endforeach
             </div>
-            <p class="muted" style="font-size:0.82rem;margin:8px 0 0">Views per day, last 30 days (built-in analytics)</p>
+            <p class="muted" style="font-size:0.82rem;margin:8px 0 0">Views per day, last 30 days (built-in analytics) · <span id="stat-live" class="muted">updates live</span></p>
         </div>
 
         <div class="card">
@@ -628,6 +628,32 @@
     </div>
 
     <script>
+        /* Live dashboard: poll the stats endpoint and update the counters + chart. */
+        (() => {
+            const bars = document.getElementById('stat-bars');
+            if (!bars) { return; }
+            const url = bars.dataset.url;
+            const set = (id, v) => { const el = document.getElementById(id); if (el) { el.textContent = v; } };
+            const refresh = async () => {
+                try {
+                    const r = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+                    if (!r.ok) { return; }
+                    const d = await r.json();
+                    set('stat-views', Number(d.views).toLocaleString());
+                    set('stat-entries', Number(d.entries).toLocaleString());
+                    set('stat-conv', Number(d.conversion).toFixed(1) + '%');
+                    set('stat-dwell', d.dwell);
+                    const peak = Math.max(1, ...d.days.map((x) => x.views));
+                    bars.innerHTML = d.days.map((x) => {
+                        const h = Math.max(2, Math.round(x.views / peak * 60));
+                        return `<i style="height:${h}px" title="${x.date}: ${x.views} views, ${x.entries} entries"></i>`;
+                    }).join('');
+                } catch (e) { /* keep the last render on a hiccup */ }
+            };
+            const timer = setInterval(refresh, 20000);
+            document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); } });
+        })();
+
         (() => {
             const base = @json($site->url());
             const preview = document.getElementById('utm-preview');

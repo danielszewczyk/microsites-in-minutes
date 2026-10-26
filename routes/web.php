@@ -113,6 +113,8 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:30,1,microsite-regenerate')
         ->name('microsite.regenerate');
     Route::get('/manage/entries.csv', [SiteManageController::class, 'exportEntries'])->name('microsite.entries.export');
+    Route::get('/manage/stats.json', [SiteManageController::class, 'stats'])
+        ->middleware('throttle:120,1,manage-stats')->name('microsite.stats');
     Route::get('/entries/{entry}/photo', [SiteManageController::class, 'entryPhoto'])
         ->whereNumber('entry')
         ->middleware('throttle:300,1,entry-photo')

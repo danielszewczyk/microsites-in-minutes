@@ -48,6 +48,19 @@ class ManageTest extends TestCase
             ->assertSee('Rate limit');
     }
 
+    public function test_the_live_stats_endpoint_is_owner_gated_and_returns_counts(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create(['view_count' => 10, 'entry_count' => 3]);
+
+        $this->get(route('microsite.stats', $site->slug))->assertForbidden();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->get(route('microsite.stats', $site->slug), ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson(['views' => 10, 'entries' => 3])
+            ->assertJsonStructure(['views', 'entries', 'conversion', 'dwell', 'days']);
+    }
+
     public function test_share_link_token_sets_a_cookie_and_redirects(): void
     {
         $site = Site::factory()->withToken('secret-token')->create();

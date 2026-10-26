@@ -12,6 +12,7 @@ use App\Sites\Plans;
 use App\Sites\SiteComposer;
 use App\Sites\UsageReport;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -239,6 +240,26 @@ class SiteManageController extends Controller
         $value = (string) $value;
 
         return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'".$value : $value;
+    }
+
+    /**
+     * Live stats for the dashboard: the headline counters and the 30-day
+     * series, polled by the manage page so the chart updates without a reload.
+     */
+    public function stats(Request $request, string $slug): JsonResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        $avg = $site->avgDwellSeconds();
+
+        return response()->json([
+            'views' => (int) $site->view_count,
+            'entries' => (int) $site->entry_count,
+            'conversion' => $site->view_count > 0 ? round($site->entry_count / $site->view_count * 100, 1) : 0.0,
+            'dwell' => $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—',
+            'days' => $this->recentStats($site),
+        ]);
     }
 
     /**
