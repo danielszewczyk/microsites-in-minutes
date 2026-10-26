@@ -365,19 +365,23 @@
                 }
             });
 
-            /* Reload when the owner regenerates the page elsewhere. */
+            /* Reload when the owner regenerates the page elsewhere. The same poll
+               carries a per-tab id so the dashboard can show "viewing now". */
             let current = data.version;
-            setInterval(async () => {
+            const vid = Math.random().toString(36).slice(2, 12);
+            const beat = async () => {
                 if (document.hidden) { return; }
                 try {
-                    const res = await fetch(data.version_url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+                    const res = await fetch(data.version_url + (data.version_url.includes('?') ? '&' : '?') + 'v=' + vid, { cache: 'no-store', headers: { Accept: 'application/json' } });
                     if (!res.ok) { return; }
                     const body = await res.json();
                     if (body.version && body.version !== current && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
                         location.reload();
                     }
                 } catch (e) {}
-            }, 5000);
+            };
+            beat();
+            setInterval(beat, 5000);
 
             /* Time on page: count only the time the page is actually visible, and
                send it once when the visitor leaves (sendBeacon survives unload). */

@@ -58,7 +58,20 @@ class ManageTest extends TestCase
             ->get(route('microsite.stats', $site->slug), ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['views' => 10, 'entries' => 3])
-            ->assertJsonStructure(['views', 'entries', 'conversion', 'dwell', 'days']);
+            ->assertJsonStructure(['views', 'entries', 'conversion', 'dwell', 'live', 'days']);
+    }
+
+    public function test_a_recent_viewer_shows_as_live_on_the_dashboard(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+
+        // A visitor's page beats via the version poll with its per-tab id.
+        $this->get(route('microsite.version', $site->slug).'?v=tabABC123')->assertOk();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->get(route('microsite.stats', $site->slug), ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('live', 1);
     }
 
     public function test_share_link_token_sets_a_cookie_and_redirects(): void

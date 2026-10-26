@@ -20,6 +20,8 @@
         .stats { display: flex; gap: 28px; flex-wrap: wrap; }
         .stat b { display: block; font-size: 2rem; }
         .stat span { color: var(--muted); font-size: 0.9rem; }
+        .live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #16a34a; margin-right: 8px; vertical-align: baseline; animation: livepulse 1.6s ease-in-out infinite; }
+        @keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 14px; }
         .bars i { flex: 1; background: var(--accent); min-height: 2px; border-radius: 2px 2px 0 0; opacity: 0.85; }
         table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -86,6 +88,7 @@
         <div class="card">
             <div class="stats">
                 <div class="stat"><b id="stat-views">{{ number_format($site->view_count) }}</b><span>views</span></div>
+                <div class="stat"><b><span class="live-dot"></span><span id="stat-live">{{ $live }}</span></b><span>viewing now</span></div>
                 <div class="stat"><b id="stat-entries">{{ number_format($site->entry_count) }}</b><span>entries</span></div>
                 <div class="stat"><b id="stat-conv">{{ $site->view_count > 0 ? number_format($site->entry_count / $site->view_count * 100, 1) : '0.0' }}%</b><span>conversion</span></div>
                 @php($avg = $site->avgDwellSeconds())
@@ -663,6 +666,7 @@
                     countTo('stat-entries', Number(d.entries));
                     countTo('stat-conv', Number(d.conversion), 1, '%');
                     set('stat-dwell', d.dwell);
+                    set('stat-live', String(d.live ?? 0));
                     const peak = Math.max(1, ...d.days.map((x) => x.views));
                     bars.innerHTML = d.days.map((x) => {
                         const h = Math.max(2, Math.round(x.views / peak * 60));

@@ -11,6 +11,7 @@ use App\Sites\HeroArt;
 use App\Sites\Plans;
 use App\Sites\SiteComposer;
 use App\Sites\UsageReport;
+use App\Support\LiveViewers;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -53,6 +54,7 @@ class SiteManageController extends Controller
             'illustrations' => HeroArt::ILLUSTRATIONS,
             'entries' => $site->entries()->latest()->limit(100)->get(),
             'stats' => $this->recentStats($site),
+            'live' => LiveViewers::count($site->id),
             'plan' => $site->owner->plan(),
             'launchFree' => Plans::launchFree(),
             'usage' => UsageReport::for($site->owner),
@@ -258,6 +260,7 @@ class SiteManageController extends Controller
             'entries' => (int) $site->entry_count,
             'conversion' => $site->view_count > 0 ? round($site->entry_count / $site->view_count * 100, 1) : 0.0,
             'dwell' => $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—',
+            'live' => LiveViewers::count($site->id),
             'days' => $this->recentStats($site),
         ]);
     }

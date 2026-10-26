@@ -11,6 +11,7 @@ use App\Models\SiteAlarm;
 use App\Models\SiteAsset;
 use App\Models\SiteEntry;
 use App\Support\BannerImage;
+use App\Support\LiveViewers;
 use App\Support\QrCode;
 use App\Support\TrafficSource;
 use Illuminate\Contracts\View\View;
@@ -83,9 +84,14 @@ class MicrositeController extends Controller
      * What an open page polls to know when to reload itself: an opaque stamp
      * that changes whenever the owner regenerates or edits the page.
      */
-    public function version(string $slug): JsonResponse
+    public function version(Request $request, string $slug): JsonResponse
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        // The page polls this every few seconds; use it as the presence beat.
+        if (($vid = (string) $request->query('v', '')) !== '') {
+            LiveViewers::beat($site->id, $vid);
+        }
 
         return response()->json(['version' => $site->version()])->header('Cache-Control', 'no-store');
     }
