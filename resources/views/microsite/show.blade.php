@@ -45,8 +45,13 @@
         .photo-cap .opt { color: var(--muted); font-weight: 400; }
         .vf { position: relative; width: 100%; max-width: 300px; aspect-ratio: 3 / 4; margin: 10px auto; border-radius: 16px; overflow: hidden; background: #000; }
         .vf video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        .vf .mask { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-        .vf .vf-hint { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; color: #fff; font-size: 0.9rem; text-shadow: 0 1px 4px rgba(0,0,0,.65); }
+        /* Letterbox mask: solid black bars top and bottom, a clear slit in the
+           middle for the smile. The slit height (26%) must match SLIT in the JS
+           so the captured crop lines up with what the visitor framed. */
+        .vf .bars { position: absolute; inset: 0; display: flex; flex-direction: column; pointer-events: none; }
+        .vf .bars .bar { flex: 1 1 auto; background: #000; }
+        .vf .bars .slit { flex: 0 0 26%; position: relative; display: flex; align-items: flex-end; justify-content: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); }
+        .vf .vf-hint { color: #fff; font-size: 0.85rem; margin-bottom: 6px; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
         #shot { width: 100%; max-width: 300px; border-radius: 16px; display: block; margin: 10px auto; }
         .cap-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
@@ -192,11 +197,11 @@
                             <label>Add your smile <span class="opt">(optional)</span></label>
                             <div class="vf" id="vf" hidden>
                                 <video id="cam" playsinline autoplay muted></video>
-                                <svg class="mask" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                    <path d="M50 8 C72 8 86 26 86 48 C86 74 70 92 50 92 C30 92 14 74 14 48 C14 26 28 8 50 8 Z" fill="none" stroke="#fff" stroke-width="1.2" stroke-dasharray="3 2" opacity="0.85"/>
-                                    <path d="M34 58 Q50 76 66 58" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity="0.95"/>
-                                </svg>
-                                <span class="vf-hint">Center your smile 😁</span>
+                                <div class="bars" aria-hidden="true">
+                                    <div class="bar"></div>
+                                    <div class="slit"><span class="vf-hint">Line up your smile 😁</span></div>
+                                    <div class="bar"></div>
+                                </div>
                             </div>
                             <img id="shot" alt="Your photo" hidden>
                             <input type="file" id="photo-file" accept="image/*" capture="user" hidden>
@@ -257,6 +262,7 @@
                 const vf = $('vf'), cam = $('cam'), shot = $('shot'), file = $('photo-file');
                 const bStart = $('cap-start'), bShoot = $('cap-shoot'), bRedo = $('cap-redo');
                 let stream = null;
+                const SLIT = 0.26; /* smile strip height — must match .slit in the CSS */
                 const stop = () => { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } };
                 const show = (blob, url) => {
                     photoBlob = blob; shot.src = url; shot.hidden = false;
@@ -274,10 +280,12 @@
                 bShoot.addEventListener('click', () => {
                     const w = cam.videoWidth, h = cam.videoHeight;
                     if (!w || !h) { return; }
-                    const c = document.createElement('canvas'); c.width = w; c.height = h;
+                    // Keep only the smile slit (the clear strip between the bars).
+                    const sh = Math.round(h * SLIT), sy = Math.round((h - sh) / 2);
+                    const c = document.createElement('canvas'); c.width = w; c.height = sh;
                     const ctx = c.getContext('2d');
                     ctx.translate(w, 0); ctx.scale(-1, 1); /* un-mirror the selfie view */
-                    ctx.drawImage(cam, 0, 0, w, h);
+                    ctx.drawImage(cam, 0, sy, w, sh, 0, 0, w, sh);
                     c.toBlob((blob) => { if (blob) { show(blob, URL.createObjectURL(blob)); } }, 'image/jpeg', 0.9);
                 });
                 bRedo.addEventListener('click', () => { photoBlob = null; shot.src = ''; shot.hidden = true; bRedo.hidden = true; bStart.hidden = false; });
