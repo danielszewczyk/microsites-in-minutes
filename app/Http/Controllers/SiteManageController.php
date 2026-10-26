@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ManagesSite;
 use App\Models\Site;
 use App\Models\Site as SiteModel;
+use App\Models\SiteAsset;
 use App\Models\SiteBreakdown;
 use App\Sites\HeroArt;
 use App\Sites\Plans;
@@ -14,6 +15,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -112,6 +114,7 @@ class SiteManageController extends Controller
             'verify_emails' => ['boolean'],
             'verify_phones' => ['boolean'],
             'require_confirmation' => ['boolean'],
+            'collect_photo' => ['boolean'],
             'webhook_url' => ['nullable', 'url', 'max:300'],
             'go_live_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:go_live_at'],
@@ -168,6 +171,32 @@ class SiteManageController extends Controller
 
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Serve an entrant's uploaded photo — owner only (proven by the manage
+     * token), streamed from the private disk, never cached, nosniff. Entrant
+     * photos are personal, so they are never public.
+     */
+    public function entryPhoto(Request $request, string $slug, string $entry): StreamedResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        // Resolve the entry only after proving ownership, scoped to this site,
+        // so probing entry ids never reveals whether one exists.
+        $record = $site->entries()->whereKey($entry)->first();
+        abort_unless($record !== null && filled($record->photo_path), 404);
+
+        $disk = Storage::disk(SiteAsset::DISK);
+        abort_unless($disk->exists($record->photo_path), 404);
+
+        return $disk->response($record->photo_path, 'entry.jpg', [
+            'Content-Type' => 'image/jpeg',
+            'Content-Disposition' => 'inline; filename="entry.jpg"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=0, no-store',
+        ]);
     }
 
     /**

@@ -369,6 +369,15 @@ class Site extends Model
     }
 
     /**
+     * Whether the entry form invites the visitor to add a photo (e.g. a
+     * "submit your smile" promo). Mobile capture only; off by default.
+     */
+    public function collectsPhotos(): bool
+    {
+        return (bool) ($this->settings['collect_photo'] ?? false);
+    }
+
+    /**
      * Average time a visitor actively spent on the page, in whole seconds.
      */
     public function avgDwellSeconds(): int

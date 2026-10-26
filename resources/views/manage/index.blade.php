@@ -362,7 +362,7 @@
                     return '<span style="font-size:0.7rem;padding:1px 6px;border-radius:6px;color:'.$fg.';background:'.$bg.';margin-left:6px;white-space:nowrap">'.$text.'</span>';
                 })
                 <table>
-                    <thead><tr><th>When</th><th>Name</th><th>Email</th><th>Phone</th><th>Source</th><th>Details</th></tr></thead>
+                    <thead><tr><th>When</th><th>Name</th><th>Email</th><th>Phone</th><th>Source</th><th>Photo</th><th>Details</th></tr></thead>
                     <tbody>
                         @foreach ($entries as $entry)
                             <tr>
@@ -371,6 +371,13 @@
                                 <td>{{ $entry->email }}{!! $badge($entry->email_status) !!}</td>
                                 <td>{{ $entry->phone }}{!! $badge($entry->phone_status) !!}</td>
                                 <td class="muted" style="font-size:0.82rem">{{ $entry->source ?: '—' }}</td>
+                                <td>
+                                    @if ($entry->photo_path)
+                                        <a href="{{ route('microsite.entry.photo', [$site->slug, $entry]) }}" target="_blank" rel="noopener"><img src="{{ route('microsite.entry.photo', [$site->slug, $entry]) }}" alt="Entry photo" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block"></a>
+                                    @else
+                                        <span class="muted">—</span>
+                                    @endif
+                                </td>
                                 <td>
                                     <details>
                                         <summary class="muted" style="cursor:pointer;font-size:0.82rem">view</summary>
@@ -566,6 +573,14 @@
                     <label class="muted" style="font-weight:400;display:block">
                         <input type="checkbox" name="require_confirmation" value="1" style="width:auto" {{ ($inputs['require_confirmation'] ?? false) ? 'checked' : '' }}>
                         Require <strong>confirmation</strong> — entrants click an emailed link to confirm (double opt-in)
+                    </label>
+                </fieldset>
+
+                <fieldset style="margin-top:18px">
+                    <legend>Photo capture <span class="hint" style="font-weight:400;color:var(--muted)">— mobile</span></legend>
+                    <label class="muted" style="font-weight:400;display:block">
+                        <input type="checkbox" name="collect_photo" value="1" style="width:auto" {{ ($inputs['collect_photo'] ?? false) ? 'checked' : '' }}>
+                        Ask entrants to <strong>add a photo</strong> (e.g. "submit your smile") — a live camera with a framing mask on phones. Photos are private to you.
                     </label>
                 </fieldset>
 

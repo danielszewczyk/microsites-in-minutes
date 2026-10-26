@@ -20,8 +20,9 @@ class BannerImage
     /** The largest image the server will decode at all (GD holds ~4 bytes/pixel). */
     public const int MAX_PIXELS = 16_000_000;
 
-    public static function redraw(UploadedFile $file, string $field = 'file'): string
+    public static function redraw(UploadedFile $file, string $field = 'file', ?int $maxEdge = null): string
     {
+        $maxEdge ??= self::MAX_EDGE;
         $path = $file->getRealPath();
         $size = @getimagesize($path);
 
@@ -39,17 +40,22 @@ class BannerImage
             throw ValidationException::withMessages([$field => 'That file could not be read as an image.']);
         }
 
-        $source = self::upright($source, $file, (int) ($size[2] ?? 0));
-
+        // Downscale to the bound first, then free the full-size decode, so the
+        // orientation step below rotates a small image. Rotating a full-size
+        // phone photo holds the original and its copy at once and can exhaust
+        // the worker's memory.
         $width = imagesx($source);
         $height = imagesy($source);
-        $scale = min(1, self::MAX_EDGE / max($width, $height));
+        $scale = min(1, $maxEdge / max($width, $height));
         $newWidth = max(1, (int) round($width * $scale));
         $newHeight = max(1, (int) round($height * $scale));
 
         $canvas = imagecreatetruecolor($newWidth, $newHeight);
         imagefill($canvas, 0, 0, imagecolorallocate($canvas, 255, 255, 255));
         imagecopyresampled($canvas, $source, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+        imagedestroy($source);
+
+        $canvas = self::upright($canvas, $file, (int) ($size[2] ?? 0));
 
         ob_start();
         imagejpeg($canvas, null, 82);

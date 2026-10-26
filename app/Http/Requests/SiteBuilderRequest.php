@@ -68,6 +68,7 @@ class SiteBuilderRequest extends FormRequest
             'verify_emails' => ['boolean'],
             'verify_phones' => ['boolean'],
             'require_confirmation' => ['boolean'],
+            'collect_photo' => ['boolean'],
             'webhook_url' => ['nullable', 'url', 'max:300'],
             'go_live_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:go_live_at'],

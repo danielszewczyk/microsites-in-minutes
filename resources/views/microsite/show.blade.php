@@ -41,6 +41,15 @@
         .btn { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; padding: 14px 26px; border-radius: 12px; border: 0; font-size: 1.05rem; cursor: pointer; }
         .btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, #fff); outline-offset: 2px; }
         .cta-note { color: var(--muted); font-size: 0.9rem; margin: 12px 0 0; max-width: 46ch; }
+        /* Smile capture: mobile camera viewfinder with a framing mask. */
+        .photo-cap .opt { color: var(--muted); font-weight: 400; }
+        .vf { position: relative; width: 100%; max-width: 300px; aspect-ratio: 3 / 4; margin: 10px auto; border-radius: 16px; overflow: hidden; background: #000; }
+        .vf video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .vf .mask { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+        .vf .vf-hint { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; color: #fff; font-size: 0.9rem; text-shadow: 0 1px 4px rgba(0,0,0,.65); }
+        #shot { width: 100%; max-width: 300px; border-radius: 16px; display: block; margin: 10px auto; }
+        .cap-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
         section { padding: 56px 0; }
         h2 { font-size: 1.6rem; margin: 0 0 16px; }
         .lead { font-size: 1.12rem; max-width: 62ch; margin: 0; }
@@ -178,6 +187,26 @@
                         <label for="f-website">Leave this field empty</label>
                         <input type="text" id="f-website" name="website" tabindex="-1" autocomplete="off">
                     </div>
+                    @if ($site->collectsPhotos())
+                        <div class="photo-cap" id="photo-cap" hidden>
+                            <label>Add your smile <span class="opt">(optional)</span></label>
+                            <div class="vf" id="vf" hidden>
+                                <video id="cam" playsinline autoplay muted></video>
+                                <svg class="mask" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <path d="M50 8 C72 8 86 26 86 48 C86 74 70 92 50 92 C30 92 14 74 14 48 C14 26 28 8 50 8 Z" fill="none" stroke="#fff" stroke-width="1.2" stroke-dasharray="3 2" opacity="0.85"/>
+                                    <path d="M34 58 Q50 76 66 58" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity="0.95"/>
+                                </svg>
+                                <span class="vf-hint">Center your smile 😁</span>
+                            </div>
+                            <img id="shot" alt="Your photo" hidden>
+                            <input type="file" id="photo-file" accept="image/*" capture="user" hidden>
+                            <div class="cap-btns">
+                                <button type="button" class="btn ghost" id="cap-start">📸 Take your smile</button>
+                                <button type="button" class="btn" id="cap-shoot" hidden>Capture</button>
+                                <button type="button" class="btn ghost" id="cap-redo" hidden>Retake</button>
+                            </div>
+                        </div>
+                    @endif
                     <div>
                         <button type="submit" class="btn">{{ $content['cta']['label'] }}</button>
                     </div>
@@ -218,6 +247,60 @@
                 try { localStorage.setItem('mim-qr-hidden', '1'); } catch (e) {}
             });
 
+            /* Smile capture (mobile only): live camera with a framing mask, a
+               capture button, and a native-picker fallback. The chosen image is
+               held as a blob and sent with the entry as multipart form data. */
+            let photoBlob = null;
+            const photoCap = $('photo-cap');
+            if (photoCap && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                photoCap.hidden = false;
+                const vf = $('vf'), cam = $('cam'), shot = $('shot'), file = $('photo-file');
+                const bStart = $('cap-start'), bShoot = $('cap-shoot'), bRedo = $('cap-redo');
+                let stream = null;
+                const stop = () => { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } };
+                const show = (blob, url) => {
+                    photoBlob = blob; shot.src = url; shot.hidden = false;
+                    vf.hidden = true; stop(); bShoot.hidden = true; bStart.hidden = true; bRedo.hidden = false;
+                };
+                bStart.addEventListener('click', async () => {
+                    photoBlob = null;
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                        cam.srcObject = stream; vf.hidden = false; bStart.hidden = true; bShoot.hidden = false;
+                    } catch (e) {
+                        file.click(); /* no camera access: use the native photo picker */
+                    }
+                });
+                bShoot.addEventListener('click', () => {
+                    const w = cam.videoWidth, h = cam.videoHeight;
+                    if (!w || !h) { return; }
+                    const c = document.createElement('canvas'); c.width = w; c.height = h;
+                    const ctx = c.getContext('2d');
+                    ctx.translate(w, 0); ctx.scale(-1, 1); /* un-mirror the selfie view */
+                    ctx.drawImage(cam, 0, 0, w, h);
+                    c.toBlob((blob) => { if (blob) { show(blob, URL.createObjectURL(blob)); } }, 'image/jpeg', 0.9);
+                });
+                bRedo.addEventListener('click', () => { photoBlob = null; shot.src = ''; shot.hidden = true; bRedo.hidden = true; bStart.hidden = false; });
+                file.addEventListener('change', () => {
+                    const f = file.files[0];
+                    if (!f) { return; }
+                    // Downscale the picked photo in the browser so the upload stays
+                    // small (a raw camera original can exceed the server's limit).
+                    const img = new Image();
+                    img.onload = () => {
+                        const max = 1600, s = Math.min(1, max / Math.max(img.width, img.height));
+                        const c = document.createElement('canvas');
+                        c.width = Math.max(1, Math.round(img.width * s));
+                        c.height = Math.max(1, Math.round(img.height * s));
+                        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                        c.toBlob((blob) => show(blob || f, URL.createObjectURL(blob || f)), 'image/jpeg', 0.9);
+                        URL.revokeObjectURL(img.src);
+                    };
+                    img.onerror = () => show(f, URL.createObjectURL(f));
+                    img.src = URL.createObjectURL(f);
+                });
+            }
+
             /* Entry form: post with fetch, show the result inline. Keeps the page cacheable. */
             const form = $('entry-form');
             const ok = $('entry-ok');
@@ -228,17 +311,25 @@
                 const button = form.querySelector('button');
                 button.disabled = true;
                 let res, body = {};
-                const payload = Object.fromEntries(new FormData(form));
                 const params = new URLSearchParams(location.search);
-                payload.utm_source = params.get('utm_source') || '';
-                payload.utm_campaign = params.get('utm_campaign') || '';
-                payload.referrer = document.referrer || '';
+                let opts;
+                if (photoBlob) {
+                    // A photo was captured: send everything as multipart.
+                    const fd = new FormData(form);
+                    fd.append('photo', photoBlob, 'smile.jpg');
+                    fd.set('utm_source', params.get('utm_source') || '');
+                    fd.set('utm_campaign', params.get('utm_campaign') || '');
+                    fd.set('referrer', document.referrer || '');
+                    opts = { method: 'POST', headers: { Accept: 'application/json' }, body: fd };
+                } else {
+                    const payload = Object.fromEntries(new FormData(form));
+                    payload.utm_source = params.get('utm_source') || '';
+                    payload.utm_campaign = params.get('utm_campaign') || '';
+                    payload.referrer = document.referrer || '';
+                    opts = { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
+                }
                 try {
-                    res = await fetch(data.enter, {
-                        method: 'POST',
-                        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
-                    });
+                    res = await fetch(data.enter, opts);
                     body = await res.json().catch(() => ({}));
                 } catch (e) {
                     button.disabled = false;

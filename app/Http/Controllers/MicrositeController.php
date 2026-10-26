@@ -10,6 +10,7 @@ use App\Models\Site;
 use App\Models\SiteAlarm;
 use App\Models\SiteAsset;
 use App\Models\SiteEntry;
+use App\Support\BannerImage;
 use App\Support\QrCode;
 use App\Support\TrafficSource;
 use Illuminate\Contracts\View\View;
@@ -20,6 +21,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -204,12 +206,25 @@ class MicrositeController extends Controller
         $needsConfirmation = ($site->settings['require_confirmation'] ?? false) && filled($validated['email'] ?? null);
         $confirmToken = $needsConfirmation ? Str::random(40) : null;
 
+        // Optional photo (e.g. "submit your smile"). Only when the site asks for
+        // one, and never stored as sent: the upload is validated and redrawn
+        // through GD, which drops EXIF and anything hiding in the file, then
+        // kept on the private assets disk under an unguessable name. Served back
+        // only to the owner through an authorised route.
+        $photoPath = null;
+        if ($site->collectsPhotos() && $request->hasFile('photo')) {
+            $request->validate(['photo' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:12288']]);
+            $photoPath = $site->assetFolder().'/entries/'.Str::random(32).'.jpg';
+            Storage::disk(SiteAsset::DISK)->put($photoPath, BannerImage::redraw($request->file('photo'), 'photo', 1600));
+        }
+
         $entry = SiteEntry::query()->create([
             'site_id' => $site->id,
             'name' => $validated['name'],
             'email' => $validated['email'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'message' => $validated['message'] ?? null,
+            'photo_path' => $photoPath,
             'is_amoe' => false,
             'ip_hash' => hash('sha256', (string) $request->ip()),
             'ip' => $request->ip(),
