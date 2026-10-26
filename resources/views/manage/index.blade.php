@@ -633,15 +633,35 @@
             const bars = document.getElementById('stat-bars');
             if (!bars) { return; }
             const url = bars.dataset.url;
+            const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             const set = (id, v) => { const el = document.getElementById(id); if (el) { el.textContent = v; } };
+            const num = (el) => parseFloat((el.textContent || '0').replace(/[^0-9.]/g, '')) || 0;
+            const fmt = (v, decimals, suffix) => (decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString()) + suffix;
+
+            /* Tick the counter up to the new value instead of snapping. */
+            const countTo = (id, target, decimals = 0, suffix = '') => {
+                const el = document.getElementById(id);
+                if (!el) { return; }
+                const from = num(el);
+                if (from === target || reduce) { el.textContent = fmt(target, decimals, suffix); return; }
+                const dur = 650, start = performance.now();
+                const tick = (now) => {
+                    const t = Math.min(1, (now - start) / dur);
+                    const eased = 1 - Math.pow(1 - t, 3); /* easeOutCubic */
+                    el.textContent = fmt(from + (target - from) * eased, decimals, suffix);
+                    if (t < 1) { requestAnimationFrame(tick); } else { el.textContent = fmt(target, decimals, suffix); }
+                };
+                requestAnimationFrame(tick);
+            };
+
             const refresh = async () => {
                 try {
                     const r = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
                     if (!r.ok) { return; }
                     const d = await r.json();
-                    set('stat-views', Number(d.views).toLocaleString());
-                    set('stat-entries', Number(d.entries).toLocaleString());
-                    set('stat-conv', Number(d.conversion).toFixed(1) + '%');
+                    countTo('stat-views', Number(d.views));
+                    countTo('stat-entries', Number(d.entries));
+                    countTo('stat-conv', Number(d.conversion), 1, '%');
                     set('stat-dwell', d.dwell);
                     const peak = Math.max(1, ...d.days.map((x) => x.views));
                     bars.innerHTML = d.days.map((x) => {
@@ -650,7 +670,7 @@
                     }).join('');
                 } catch (e) { /* keep the last render on a hiccup */ }
             };
-            const timer = setInterval(refresh, 20000);
+            setInterval(refresh, 3000);
             document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); } });
         })();
 
