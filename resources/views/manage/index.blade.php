@@ -417,15 +417,48 @@
             <button type="button" class="btn" id="embed-copy" style="margin-top:8px;padding:9px 16px">Copy</button>
         </div>
 
+        @php($apiEndpoint = route('api.entries.store', $site->slug, absolute: true))
+        @php($apiToken = $manageToken ?: 'YOUR_MANAGE_TOKEN')
         <div class="card">
             <h2 style="margin-top:0;font-size:1.2rem">Import API</h2>
-            <p class="muted" style="margin-top:0">Push entries in programmatically (one, or an <code>entries</code> array).</p>
-            <pre style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">POST {{ route('api.entries.store', $site->slug, absolute: true) }}
-Authorization: Bearer {{ $manageToken ? $manageToken : 'YOUR_MANAGE_TOKEN' }}
-Content-Type: application/json
+            <p class="muted" style="margin-top:0">Push entries into this site from your own systems — one at a time, or up to 500 at once.</p>
 
-{"name":"Jane Doe","email":"jane@example.com"}</pre>
-            <p class="muted" style="font-size:0.8rem;margin:0">The bearer token is your private manage token — keep it secret.</p>
+            <p style="margin:0 0 4px;font-weight:600">Endpoint</p>
+            <pre style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">POST {{ $apiEndpoint }}</pre>
+
+            <p style="margin:14px 0 4px;font-weight:600">Authentication</p>
+            <p class="muted" style="margin:0 0 6px">Send your <strong>manage token</strong> as a bearer token. It's the same private secret that opens this dashboard — treat it like a password, and only from your server (never in client-side code).</p>
+            <pre style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">Authorization: Bearer {{ $apiToken }}</pre>
+
+            <p style="margin:14px 0 4px;font-weight:600">Fields</p>
+            <ul class="muted" style="margin:0;font-size:0.9rem;padding-left:18px">
+                <li><code>name</code> — required, up to 80 characters</li>
+                <li><code>email</code> — optional, a valid email, up to 120</li>
+                <li><code>phone</code> — optional, up to 40</li>
+                <li><code>message</code> — optional, up to 1000</li>
+                <li><code>source</code> — optional label, up to 40 (defaults to <code>api</code>) — shows per entry in your export/report</li>
+            </ul>
+
+            <p style="margin:14px 0 4px;font-weight:600">Example — one entry</p>
+            <pre id="api-curl" style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">curl -X POST {{ $apiEndpoint }} \
+  -H "Authorization: Bearer {{ $apiToken }}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Jane Doe","email":"jane@example.com","source":"crm"}'</pre>
+            <button type="button" class="btn" id="api-copy" style="margin-top:8px;padding:9px 16px;width:auto;display:inline-block">Copy</button>
+
+            <p style="margin:14px 0 4px;font-weight:600">Example — a batch (up to 500)</p>
+            <pre style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">-d '{"entries":[
+  {"name":"Jane Doe","email":"jane@example.com"},
+  {"name":"John Roe","phone":"+1 555 0100"}
+]}'</pre>
+
+            <p style="margin:14px 0 4px;font-weight:600">Responses</p>
+            <ul class="muted" style="margin:0;font-size:0.9rem;padding-left:18px">
+                <li><code>201</code> — <code>{"ok":true,"created":N}</code>. Entries with an email already on file are skipped, so <code>created</code> may be fewer than you sent.</li>
+                <li><code>401</code> — missing or wrong bearer token.</li>
+                <li><code>422</code> — a row failed validation, or the batch was empty / over 500 (nothing is written when any row is invalid).</li>
+            </ul>
+            <p class="muted" style="font-size:0.8rem;margin:12px 0 0">Rate limit: 120 requests per minute. Send <code>Accept: application/json</code> to always get JSON back.</p>
         </div>
 
         @if ($entries->isNotEmpty())
@@ -606,6 +639,14 @@ Content-Type: application/json
                 const name = @json($shareName);
                 window.location.href = 'mailto:?subject=' + encodeURIComponent('Check out ' + name)
                     + '&body=' + encodeURIComponent(name + ' — ' + preview.value);
+            });
+
+            /* Copy the Import API curl example. */
+            document.getElementById('api-copy')?.addEventListener('click', async () => {
+                const code = document.getElementById('api-curl').textContent;
+                try { await navigator.clipboard.writeText(code); } catch (e) { /* no-op */ }
+                const b = document.getElementById('api-copy');
+                b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
             });
 
             /* Copy the embed snippet. */

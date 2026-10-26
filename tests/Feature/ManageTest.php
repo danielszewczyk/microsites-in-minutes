@@ -34,6 +34,20 @@ class ManageTest extends TestCase
             ->assertSee('mailto:?subject=', false);
     }
 
+    public function test_manage_documents_the_import_api_with_the_real_endpoint_and_token(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->get(route('microsite.manage', $site->slug))
+            ->assertOk()
+            ->assertSee('Import API')
+            ->assertSee(route('api.entries.store', $site->slug, absolute: true), false)
+            ->assertSee('Authorization: Bearer secret-token', false)
+            ->assertSee('curl -X POST', false)
+            ->assertSee('Rate limit');
+    }
+
     public function test_share_link_token_sets_a_cookie_and_redirects(): void
     {
         $site = Site::factory()->withToken('secret-token')->create();
