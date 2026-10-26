@@ -484,7 +484,7 @@
                 <input type="hidden" name="type" value="{{ $inputs['type'] ?? 'standard' }}">
 
                 <div class="field">
-                    <label for="business_name">Business name</label>
+                    <label for="business_name">Site name</label>
                     <input type="text" id="business_name" name="business_name" maxlength="80" value="{{ old('business_name', $inputs['business_name'] ?? '') }}" required>
                 </div>
                 <div class="field">
