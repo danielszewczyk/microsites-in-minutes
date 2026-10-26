@@ -23,6 +23,17 @@ class ManageTest extends TestCase
             ->assertSee('Edit &amp; regenerate', false);
     }
 
+    public function test_manage_offers_sharing_the_link_by_email(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->get(route('microsite.manage', $site->slug))
+            ->assertOk()
+            ->assertSee('Email the link')
+            ->assertSee('mailto:?subject=', false);
+    }
+
     public function test_share_link_token_sets_a_cookie_and_redirects(): void
     {
         $site = Site::factory()->withToken('secret-token')->create();

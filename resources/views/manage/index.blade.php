@@ -39,11 +39,17 @@
     </style>
 </head>
 <body>
+    {{-- One subject/line for every "share via email" link: opens the owner's own
+         mail app pre-filled, so it sends from their address (no app-side sending). --}}
+    @php($shareName = $site->content['hero']['headline'] ?? ($inputs['business_name'] ?? 'my page'))
+    @php($shareSubject = rawurlencode('Check out '.$shareName))
+    @php($mailtoFor = fn (string $url): string => 'mailto:?subject='.$shareSubject.'&body='.rawurlencode($shareName.' — '.$url))
     <header>
         <div class="wrap" style="padding-bottom:0">
             <h1>{{ $inputs['business_name'] ?? 'Your site' }}</h1>
             <p class="muted" style="margin:0">
                 <a href="{{ $site->url() }}" target="_blank" rel="noopener">View live site &nearr;</a>
+                · <a href="{{ $mailtoFor($site->url()) }}">Email the link</a>
                 · {{ ucfirst($site->type) }} · {{ $plan['name'] }} plan
             </p>
         </div>
@@ -59,6 +65,7 @@
                 </p>
                 <p class="muted">Live link (share this):</p>
                 <p class="share">{{ session('created')['url'] }}</p>
+                <a class="btn" style="width:auto;display:inline-block;margin-top:10px;padding:11px 18px;text-decoration:none" href="{{ $mailtoFor(session('created')['url']) }}">✉&nbsp; Share via email</a>
                 <p class="muted" style="margin-top:14px">Manage link (bookmark this to edit later — keep it private):</p>
                 <p class="share">{{ session('created')['manage_url'] }}</p>
             </div>
@@ -207,6 +214,7 @@
                 <label>Tagged link preview</label>
                 <input type="text" id="utm-preview" readonly value="{{ $site->url() }}" style="font-family:ui-monospace,monospace;font-size:0.82rem">
                 <button type="button" class="btn" id="utm-copy" style="margin-top:8px;padding:9px 16px">Copy</button>
+                <button type="button" class="btn" id="utm-email" style="margin-top:8px;margin-left:8px;padding:9px 16px;background:transparent;color:var(--accent);border:1px solid var(--accent)">Email</button>
             </div>
 
             <form method="post" action="{{ route('microsite.links.store', $site->slug) }}">
@@ -591,6 +599,13 @@ Content-Type: application/json
                 try { await navigator.clipboard.writeText(preview.value); } catch (e) { preview.select(); document.execCommand('copy'); }
                 const b = document.getElementById('utm-copy');
                 b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
+            });
+
+            /* Email the current (possibly UTM-tagged) link from the owner's mail app. */
+            document.getElementById('utm-email')?.addEventListener('click', () => {
+                const name = @json($shareName);
+                window.location.href = 'mailto:?subject=' + encodeURIComponent('Check out ' + name)
+                    + '&body=' + encodeURIComponent(name + ' — ' + preview.value);
             });
 
             /* Copy the embed snippet. */
