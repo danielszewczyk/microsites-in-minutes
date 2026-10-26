@@ -266,7 +266,7 @@
                 }
                 return $html.'</tbody></table>';
             })
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
+            <div style="display:grid;grid-template-columns:1fr;gap:22px">
                 <div>{!! $reportTable('Source', $breakdowns['source']) !!}</div>
                 <div>{!! $reportTable('Device', $breakdowns['device']) !!}</div>
             </div>
