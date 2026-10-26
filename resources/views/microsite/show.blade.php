@@ -44,7 +44,7 @@
         /* Smile capture: mobile camera viewfinder with a framing mask. */
         .photo-cap .opt { color: var(--muted); font-weight: 400; }
         .vf { position: relative; width: 100%; max-width: 300px; aspect-ratio: 3 / 4; margin: 10px auto; border-radius: 16px; overflow: hidden; background: #000; }
-        .vf video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .vf video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1) scale(2); background: #000; }
         /* Letterbox mask: solid black bars top and bottom, a clear slit in the
            middle for the smile. The slit height (26%) must match SLIT in the JS
            so the captured crop lines up with what the visitor framed. */
@@ -263,6 +263,7 @@
                 const bStart = $('cap-start'), bShoot = $('cap-shoot'), bRedo = $('cap-redo');
                 let stream = null;
                 const SLIT = 0.26; /* smile strip height — must match .slit in the CSS */
+                const ZOOM = 2;    /* viewfinder zoom; the preview transform and the capture crop share it */
                 const stop = () => { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } };
                 const show = (blob, url) => {
                     photoBlob = blob; shot.src = url; shot.hidden = false;
@@ -270,22 +271,29 @@
                 };
                 bStart.addEventListener('click', async () => {
                     photoBlob = null;
+                    bStart.disabled = true;
                     try {
-                        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-                        cam.srcObject = stream; vf.hidden = false; bStart.hidden = true; bShoot.hidden = false;
+                        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false });
+                        cam.srcObject = stream;
+                        // Reveal the viewfinder only once the stream is sized, so it
+                        // doesn't flash empty and reflow as the camera warms up.
+                        cam.onloadedmetadata = () => { vf.hidden = false; bStart.hidden = true; bStart.disabled = false; bShoot.hidden = false; };
                     } catch (e) {
+                        bStart.disabled = false;
                         file.click(); /* no camera access: use the native photo picker */
                     }
                 });
                 bShoot.addEventListener('click', () => {
                     const w = cam.videoWidth, h = cam.videoHeight;
                     if (!w || !h) { return; }
-                    // Keep only the smile slit (the clear strip between the bars).
-                    const sh = Math.round(h * SLIT), sy = Math.round((h - sh) / 2);
-                    const c = document.createElement('canvas'); c.width = w; c.height = sh;
+                    // Match the zoomed slit view: centre-crop by the zoom factor,
+                    // then keep only the slit band of the visible height.
+                    const sw = Math.round(w / ZOOM), sx = Math.round((w - sw) / 2);
+                    const sh = Math.round(h * SLIT / ZOOM), sy = Math.round((h - sh) / 2);
+                    const c = document.createElement('canvas'); c.width = sw; c.height = sh;
                     const ctx = c.getContext('2d');
-                    ctx.translate(w, 0); ctx.scale(-1, 1); /* un-mirror the selfie view */
-                    ctx.drawImage(cam, 0, sy, w, sh, 0, 0, w, sh);
+                    ctx.translate(sw, 0); ctx.scale(-1, 1); /* un-mirror the selfie view */
+                    ctx.drawImage(cam, sx, sy, sw, sh, 0, 0, sw, sh);
                     c.toBlob((blob) => { if (blob) { show(blob, URL.createObjectURL(blob)); } }, 'image/jpeg', 0.9);
                 });
                 bRedo.addEventListener('click', () => { photoBlob = null; shot.src = ''; shot.hidden = true; bRedo.hidden = true; bStart.hidden = false; });
