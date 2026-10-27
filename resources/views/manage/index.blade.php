@@ -19,7 +19,7 @@
         .share { font-family: ui-monospace, monospace; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; word-break: break-all; font-size: 0.85rem; }
         .stats { display: flex; gap: 28px; flex-wrap: wrap; }
         .stat b { display: block; font-size: 2rem; }
-        .stat span { color: var(--muted); font-size: 0.9rem; }
+        .stat > span { color: var(--muted); font-size: 0.9rem; }
         .live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #16a34a; margin-right: 8px; vertical-align: baseline; animation: livepulse 1.6s ease-in-out infinite; }
         @keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 14px; }
@@ -101,7 +101,7 @@
                     <i style="height: {{ max(2, (int) round($day['views'] / $peak * 60)) }}px" title="{{ $day['date'] }}: {{ $day['views'] }} views, {{ $day['entries'] }} entries"></i>
                 @endforeach
             </div>
-            <p class="muted" style="font-size:0.82rem;margin:8px 0 0">Views per day, last 30 days (built-in analytics) · <span id="stat-live" class="muted">updates live</span></p>
+            <p class="muted" style="font-size:0.82rem;margin:8px 0 0">Views per day, last 30 days (built-in analytics) · <span class="muted">updates live</span></p>
         </div>
 
         <div class="card">
