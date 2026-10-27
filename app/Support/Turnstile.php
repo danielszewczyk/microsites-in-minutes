@@ -44,8 +44,15 @@ class Turnstile
      * it cannot confirm a human it must not wave the request through — the risk
      * of mail-bombing and bot entries during an outage outweighs the rare
      * false rejection while Cloudflare is unreachable.
+     *
+     * When $expectedHost is given, the challenge must also have been solved on
+     * that host (siteverify's `hostname`). On a shared multi-tenant widget this
+     * stops a token minted for one tenant being replayed to another's endpoint,
+     * and it becomes the only hostname control if the widget is ever set to
+     * accept any hostname. Compared case-insensitively; a missing or different
+     * host fails closed.
      */
-    public static function verify(?string $token, ?string $ip = null): bool
+    public static function verify(?string $token, ?string $ip = null, ?string $expectedHost = null): bool
     {
         if (! self::enabled()) {
             return true;
@@ -62,7 +69,17 @@ class Turnstile
                 'remoteip' => $ip,
             ]));
 
-            return (bool) ($response->json('success') ?? false);
+            if (($response->json('success') ?? false) !== true) {
+                return false;
+            }
+
+            if ($expectedHost !== null && $expectedHost !== '') {
+                $solvedHost = (string) ($response->json('hostname') ?? '');
+
+                return $solvedHost !== '' && strcasecmp($solvedHost, $expectedHost) === 0;
+            }
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('Turnstile verification error', ['error' => $e->getMessage()]);
 

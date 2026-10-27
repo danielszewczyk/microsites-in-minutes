@@ -29,7 +29,10 @@ class EmailCodeFlowTest extends TestCase
     private function enableTurnstile(bool $pass): void
     {
         config(['services.turnstile.site_key' => 'test-site', 'services.turnstile.secret' => 'test-secret']);
-        Http::fake(['challenges.cloudflare.com/*' => Http::response(['success' => $pass])]);
+        // The fake echoes the app's own host so the server-side hostname check
+        // (which compares against the request host) passes on a successful verdict.
+        $host = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
+        Http::fake(['challenges.cloudflare.com/*' => Http::response(['success' => $pass, 'hostname' => $host])]);
     }
 
     public function test_an_email_entry_without_a_code_is_rejected(): void
@@ -340,6 +343,22 @@ class EmailCodeFlowTest extends TestCase
             ->assertOk()
             ->assertDontSee('name="email_confirm"', false)
             ->assertDontSee('class="code-boxes"', false);
+    }
+
+    public function test_turnstile_rejects_a_token_solved_on_a_different_host(): void
+    {
+        config(['services.turnstile.site_key' => 'test-site', 'services.turnstile.secret' => 'test-secret']);
+        // Verdict is success, but the challenge was solved on another host — a
+        // replayed/cross-tenant token must be rejected.
+        Http::fake(['challenges.cloudflare.com/*' => Http::response(['success' => true, 'hostname' => 'evil.example'])]);
+        $site = $this->codeSite();
+        $code = EntryCode::issue($site->id, 'jamie@example.com');
+
+        $this->postJson($site->url().'/enter', [
+            'name' => 'Jamie', 'email' => 'jamie@example.com', 'code' => $code, 'cf-turnstile-response' => 'good',
+        ])->assertStatus(422);
+
+        $this->assertDatabaseCount('site_entries', 0);
     }
 
     public function test_turnstile_pass_allows_the_entry(): void

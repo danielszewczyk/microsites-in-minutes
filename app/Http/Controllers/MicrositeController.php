@@ -207,7 +207,7 @@ class MicrositeController extends Controller
         if ($site->requiresEmailCode()) {
             // Turnstile guards every entry on the site, waitlist included, so no
             // path into the form skips the bot check.
-            if (! Turnstile::verify($this->stringInput($request, 'cf-turnstile-response'), $request->ip())) {
+            if (! Turnstile::verify($this->stringInput($request, 'cf-turnstile-response'), $request->ip(), $request->getHost())) {
                 return response()->json(['ok' => false, 'message' => 'Please complete the verification and try again.'], 422);
             }
 
@@ -370,7 +370,7 @@ class MicrositeController extends Controller
             return response()->json(['ok' => true, 'retry_after' => EntryCode::RESEND_SECONDS]);
         }
 
-        if (! Turnstile::verify($this->stringInput($request, 'cf-turnstile-response'), $request->ip())) {
+        if (! Turnstile::verify($this->stringInput($request, 'cf-turnstile-response'), $request->ip(), $request->getHost())) {
             return response()->json(['ok' => false, 'message' => 'Please complete the verification and try again.'], 422);
         }
 
