@@ -66,7 +66,8 @@
                     @endisset
                 </p>
                 <p class="muted">Live link (share this):</p>
-                <p class="share">{{ session('created')['url'] }}</p>
+                <p class="share" id="created-url">{{ session('created')['url'] }}</p>
+                <button type="button" class="btn" id="created-copy" data-copy="{{ session('created')['url'] }}" style="width:auto;display:inline-block;margin-top:10px;margin-right:8px;padding:11px 18px">📋&nbsp; Copy link</button>
                 <a class="btn" style="width:auto;display:inline-block;margin-top:10px;padding:11px 18px;text-decoration:none" href="{{ $mailtoFor(session('created')['url']) }}">✉&nbsp; Share via email</a>
                 <p class="muted" style="margin-top:14px">Manage link (bookmark this to edit later — keep it private):</p>
                 <p class="share">{{ session('created')['manage_url'] }}</p>
@@ -701,6 +702,14 @@
                 try { await navigator.clipboard.writeText(preview.value); } catch (e) { preview.select(); document.execCommand('copy'); }
                 const b = document.getElementById('utm-copy');
                 b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
+            });
+
+            /* Copy the live link straight from the just-created banner. */
+            document.getElementById('created-copy')?.addEventListener('click', async () => {
+                const b = document.getElementById('created-copy');
+                const url = b.dataset.copy || document.getElementById('created-url')?.textContent || '';
+                try { await navigator.clipboard.writeText(url); } catch (e) { const r = document.createRange(); r.selectNodeContents(document.getElementById('created-url')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges(); }
+                b.textContent = '✓ Copied'; setTimeout(() => { b.textContent = '📋 Copy link'; }, 1500);
             });
 
             /* Email the current (possibly UTM-tagged) link from the owner's mail app. */

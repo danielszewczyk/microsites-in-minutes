@@ -31,7 +31,9 @@ class ManageTest extends TestCase
             ->get(route('microsite.manage', $site->slug))
             ->assertOk()
             ->assertSee('Email the link')
-            ->assertSee('mailto:?subject=', false);
+            ->assertSee('mailto:?subject=', false)
+            // The create-only copy button is absent on an ordinary visit (no 'created' flash).
+            ->assertDontSee('id="created-copy"', false);
     }
 
     public function test_manage_documents_the_import_api_with_the_real_endpoint_and_token(): void
@@ -122,5 +124,25 @@ class ManageTest extends TestCase
         $response->assertOk();
         $this->assertStringContainsString('text/csv', $response->headers->get('Content-Type'));
         $this->assertStringContainsString('Jamie Lee', $response->streamedContent());
+    }
+
+    public function test_the_created_banner_offers_a_copy_link_button(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+        $url = $site->url();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->withSession(['created' => [
+                'url' => $url,
+                'manage_url' => route('microsite.manage', $site->slug).'?t=secret-token',
+                'build_ms' => 1200,
+                'build_cents' => 0,
+            ]])
+            ->get(route('microsite.manage', $site->slug))
+            ->assertOk()
+            ->assertSee('Your site is live')
+            ->assertSee('id="created-copy"', false)
+            ->assertSee('Copy link')
+            ->assertSee('data-copy="'.e($url).'"', false);
     }
 }
