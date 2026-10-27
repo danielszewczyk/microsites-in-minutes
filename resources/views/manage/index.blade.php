@@ -573,9 +573,13 @@
                         <input type="checkbox" name="verify_phones" value="1" style="width:auto" {{ ($inputs['verify_phones'] ?? false) ? 'checked' : '' }}>
                         Verify entry <strong>phone numbers</strong> (SMS/line lookup) — wired at launch
                     </label>
-                    <label class="muted" style="font-weight:400;display:block">
+                    <label class="muted" style="font-weight:400;display:block;margin-bottom:8px">
                         <input type="checkbox" name="require_confirmation" value="1" style="width:auto" {{ ($inputs['require_confirmation'] ?? false) ? 'checked' : '' }}>
                         Require <strong>confirmation</strong> — entrants click an emailed link to confirm (double opt-in)
+                    </label>
+                    <label class="muted" style="font-weight:400;display:block">
+                        <input type="checkbox" name="require_email_code" value="1" style="width:auto" {{ ($inputs['require_email_code'] ?? false) ? 'checked' : '' }}>
+                        Require an <strong>email code</strong> — entrants re-enter their email and type a 6-digit code before entering{{ config('services.turnstile.site_key') ? ' (with Cloudflare Turnstile bot protection)' : ' — add Turnstile keys to enable bot protection' }}
                     </label>
                 </fieldset>
 

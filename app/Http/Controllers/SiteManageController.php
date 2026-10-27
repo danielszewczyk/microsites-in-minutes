@@ -117,6 +117,7 @@ class SiteManageController extends Controller
             'verify_emails' => ['boolean'],
             'verify_phones' => ['boolean'],
             'require_confirmation' => ['boolean'],
+            'require_email_code' => ['boolean'],
             'collect_photo' => ['boolean'],
             'webhook_url' => ['nullable', 'url', 'max:300'],
             'go_live_at' => ['nullable', 'date'],

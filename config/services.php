@@ -57,4 +57,26 @@ return [
         'key' => env('BOUNCER_API_KEY'),
     ],
 
+    /*
+     * Cloudflare Turnstile bot protection for the public entry form and the
+     * email-code endpoint. When both keys are set, a verified token is required
+     * server-side before a code is sent or an entry is accepted; without them
+     * the check is skipped so the form still works and activates on key set.
+     */
+    'turnstile' => [
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
+    /*
+     * Default sender for verification emails. The platform's own Resend-verified
+     * domain (micrositesinminutes.com). This is the DEFAULT only — Site can
+     * override it per site once per-customer verified domains are wired, so this
+     * address is never hard-coded at the call site.
+     */
+    'verification' => [
+        'from_address' => env('VERIFICATION_FROM_ADDRESS', 'verify@micrositesinminutes.com'),
+        'from_name' => env('VERIFICATION_FROM_NAME', 'Microsites in Minutes'),
+    ],
+
 ];

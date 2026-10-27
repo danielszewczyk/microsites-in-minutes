@@ -11,9 +11,12 @@ use App\Models\SiteAlarm;
 use App\Models\SiteAsset;
 use App\Models\SiteEntry;
 use App\Support\BannerImage;
+use App\Support\EmailAuthenticity;
+use App\Support\EntryCode;
 use App\Support\LiveViewers;
 use App\Support\QrCode;
 use App\Support\TrafficSource;
+use App\Support\Turnstile;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -128,6 +132,8 @@ class MicrositeController extends Controller
         $html = view('microsite.embed', [
             'content' => $site->content,
             'accent' => $site->accent(),
+            'requiresEmailCode' => $site->requiresEmailCode(),
+            'fullUrl' => $site->url(),
             'client' => ['enter' => route('microsite.enter', $site->slug, absolute: true)],
         ])->render();
 
@@ -190,6 +196,39 @@ class MicrositeController extends Controller
             'phone' => ['nullable', 'string', 'max:40'],
             'message' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        // Email code verification add-on: every real entry on a site that
+        // turned it on must carry a verified Turnstile token (when configured)
+        // and an email proven by a one-time code. This runs before the entry is
+        // created AND before the duplicate-email check, so the gate can't be
+        // skipped with a phone-only post or by probing a known address. The
+        // code is burned on success (single-use). Waitlist signups on a
+        // coming-soon page are exempt — that form has no code step.
+        if ($site->requiresEmailCode()) {
+            // Turnstile guards every entry on the site, waitlist included, so no
+            // path into the form skips the bot check.
+            if (! Turnstile::verify($this->stringInput($request, 'cf-turnstile-response'), $request->ip())) {
+                return response()->json(['ok' => false, 'message' => 'Please complete the verification and try again.'], 422);
+            }
+
+            // The email + one-time code step applies to real entries only; a
+            // pre-launch waitlist signup has no code step on its page.
+            if (! $waitlist) {
+                if (blank($validated['email'] ?? null)) {
+                    return response()->json([
+                        'ok' => false,
+                        'errors' => ['email' => ['Please enter your email so we can verify it with a code.']],
+                    ], 422);
+                }
+
+                if (! EntryCode::check($site->id, $validated['email'], $this->stringInput($request, 'code'))) {
+                    return response()->json([
+                        'ok' => false,
+                        'errors' => ['code' => ['That code is incorrect or has expired — request a new one.']],
+                    ], 422);
+                }
+            }
+        }
 
         // One entry per person: a repeat with the same email is accepted
         // politely but not stored or counted again.
@@ -315,6 +354,153 @@ class MicrositeController extends Controller
     }
 
     /**
+     * Issue a one-time 6-digit email verification code for an entry. Guarded by
+     * the honeypot, a Turnstile token (when configured), a confirm-email match
+     * and a per-email-and-IP rate limit. The code is emailed and never returned
+     * or logged. Used only by sites that turned the add-on on.
+     */
+    public function sendCode(Request $request, string $slug): JsonResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        abort_unless($site->requiresEmailCode(), 404);
+
+        // A filled honeypot looks like success but sends nothing.
+        if (filled($request->input('website'))) {
+            return response()->json(['ok' => true, 'retry_after' => EntryCode::RESEND_SECONDS]);
+        }
+
+        if (! Turnstile::verify($this->stringInput($request, 'cf-turnstile-response'), $request->ip())) {
+            return response()->json(['ok' => false, 'message' => 'Please complete the verification and try again.'], 422);
+        }
+
+        // Compare the two addresses case-insensitively (as the client does) and
+        // lower-case the email the code is keyed to, so Jamie@x and jamie@x agree.
+        $request->merge([
+            'email' => is_string($request->input('email')) ? mb_strtolower(trim($request->input('email'))) : $request->input('email'),
+            'email_confirm' => is_string($request->input('email_confirm')) ? mb_strtolower(trim($request->input('email_confirm'))) : $request->input('email_confirm'),
+        ]);
+
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:120'],
+            'email_confirm' => ['required', 'same:email'],
+        ], ['email_confirm.same' => 'The two email addresses do not match.']);
+
+        $email = $validated['email'];
+
+        // Rate limit per email + IP before the checks below, so the DNS lookup
+        // among them runs only a capped number of times and send-code can't be
+        // hammered to probe. Every processed request counts, not just sends.
+        $limiterKey = 'sendcode:'.$site->id.':'.sha1($email.'|'.(string) $request->ip());
+
+        if (RateLimiter::tooManyAttempts($limiterKey, 5)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Too many codes requested. Please wait a few minutes and try again.',
+                'retry_after' => RateLimiter::availableIn($limiterKey),
+            ], 429);
+        }
+
+        RateLimiter::hit($limiterKey, 600);
+
+        // Cheap authenticity checks before spending a send (the cost-ordered
+        // funnel: Turnstile, then these free checks, then the email). These are
+        // domain-level reasons, safe to show the visitor.
+        if (EmailAuthenticity::isDisposable($email)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Please use a non-disposable email address.',
+                'errors' => ['email' => ['Please use a non-disposable email address.']],
+            ], 422);
+        }
+
+        if (! EmailAuthenticity::hasMailServer($email)) {
+            return response()->json([
+                'ok' => false,
+                'message' => "That email domain can't receive mail — please check the address.",
+                'errors' => ['email' => ["That email domain can't receive mail — please check the address."]],
+            ], 422);
+        }
+
+        // Already entered: don't send another code. Reply exactly as the normal
+        // path does, so the response can't reveal who has entered, and email the
+        // entrant a short note instead of a code.
+        if ($site->entries()->whereRaw('lower(email) = ?', [$email])->exists()) {
+            $this->sendAlreadyEnteredEmail($site, $email);
+
+            return response()->json(['ok' => true, 'retry_after' => EntryCode::RESEND_SECONDS]);
+        }
+
+        $code = EntryCode::issue($site->id, $email);
+
+        // A code was sent moments ago: don't send another, just report the wait.
+        if ($code === null) {
+            return response()->json(['ok' => true, 'retry_after' => EntryCode::retryAfter($site->id, $email)]);
+        }
+
+        $this->sendCodeEmail($site, $email, $code);
+
+        return response()->json(['ok' => true, 'retry_after' => EntryCode::RESEND_SECONDS]);
+    }
+
+    /**
+     * Email a one-time code. Kept minimal for deliverability; the code is never
+     * logged. A send failure never blocks — the visitor can request another.
+     */
+    protected function sendCodeEmail(Site $site, string $email, string $code): void
+    {
+        $name = $site->inputs['business_name'] ?? 'your entry';
+        $from = $site->verificationSender();
+
+        try {
+            Mail::raw(
+                "Your verification code for {$name} is: {$code}\n\n"
+                .'It expires in '.EntryCode::TTL_MINUTES." minutes. If you didn't request this, you can ignore this email.",
+                function ($message) use ($email, $name, $from): void {
+                    $message->from($from['address'], $from['name'])->to($email)->subject("Your verification code — {$name}");
+                },
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Entry code email failed', ['site' => $site->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Tell an already-entered address it is in, instead of a code. Sent so the
+     * send-code reply can stay identical for entered and new addresses (no
+     * membership oracle); a failure never blocks.
+     */
+    protected function sendAlreadyEnteredEmail(Site $site, string $email): void
+    {
+        $name = $site->inputs['business_name'] ?? 'your entry';
+        $from = $site->verificationSender();
+
+        try {
+            Mail::raw(
+                "Good news — you're already entered for {$name}.\n\n"
+                .'There is no need to sign up again, so you can ignore the code prompt. Good luck!',
+                function ($message) use ($email, $name, $from): void {
+                    $message->from($from['address'], $from['name'])->to($email)->subject("You're already entered — {$name}");
+                },
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Already-entered email failed', ['site' => $site->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Read a request field as a string, treating an array or missing value as
+     * an empty string. Guards against array inputs (e.g. code[]=x) crashing a
+     * string cast or a ?string argument on these public endpoints.
+     */
+    protected function stringInput(Request $request, string $key): string
+    {
+        $value = $request->input($key);
+
+        return is_string($value) ? $value : '';
+    }
+
+    /**
      * The visitor's country from Cloudflare's CF-IPCountry header (set in
      * production behind Cloudflare), or null. "XX"/"T1" mean unknown/Tor.
      */
@@ -371,9 +557,13 @@ class MicrositeController extends Controller
             'rulesDocUrl' => $site->asset(SiteAsset::RULES_DOC) !== null
                 ? route('microsite.asset', [$site->slug, SiteAsset::RULES_DOC], absolute: false)
                 : null,
+            'turnstileSiteKey' => Turnstile::siteKey(),
             'client' => [
                 'version' => $site->version(),
                 'enter' => route('microsite.enter', $site->slug, absolute: false),
+                'send_code' => route('microsite.send-code', $site->slug, absolute: false),
+                'require_code' => $site->requiresEmailCode(),
+                'resend_seconds' => EntryCode::RESEND_SECONDS,
                 'version_url' => route('microsite.version', $site->slug, absolute: false),
                 'ping' => route('microsite.ping', $site->slug, absolute: false),
             ],

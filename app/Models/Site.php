@@ -378,6 +378,34 @@ class Site extends Model
     }
 
     /**
+     * Whether email entries must be verified with a one-time 6-digit code sent
+     * to the address before the entry is accepted. Off by default.
+     */
+    public function requiresEmailCode(): bool
+    {
+        return (bool) ($this->settings['require_email_code'] ?? false);
+    }
+
+    /**
+     * The from-address and name for this site's verification emails. Defaults
+     * to the platform's own Resend-verified domain; a per-site override (the
+     * seam for future per-customer verified domains) lives in
+     * settings['verification_from'] as {address, name} and is read here so the
+     * sending domain is never hard-coded at the call site.
+     *
+     * @return array{address: string, name: string}
+     */
+    public function verificationSender(): array
+    {
+        $override = is_array($this->settings['verification_from'] ?? null) ? $this->settings['verification_from'] : [];
+
+        return [
+            'address' => $override['address'] ?? config('services.verification.from_address'),
+            'name' => $override['name'] ?? ($this->inputs['business_name'] ?? config('services.verification.from_name')),
+        ];
+    }
+
+    /**
      * Average time a visitor actively spent on the page, in whole seconds.
      */
     public function avgDwellSeconds(): int

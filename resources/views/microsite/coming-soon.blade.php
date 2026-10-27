@@ -44,6 +44,9 @@
             <input type="text" name="name" value="Waitlist" hidden>
             <button type="submit" class="btn">Notify me</button>
         </form>
+        @if ($site->requiresEmailCode() && $turnstileSiteKey)
+            <div id="ts-widget" class="cf-turnstile" data-sitekey="{{ $turnstileSiteKey }}" style="margin:14px auto 0"></div>
+        @endif
     </div>
 
     @if ($showBranding)
@@ -55,14 +58,37 @@
             const data = @json($client);
             const goLive = @json($goLiveAt?->toIso8601String());
             const f = document.getElementById('f'), ok = document.getElementById('ok'), err = document.getElementById('err');
+
+            /* Turnstile token broker — only when the add-on and a site key put a
+               widget on the page. The waitlist post carries a token so the bot
+               check applies here too; with no widget the token is empty, which
+               the server accepts only because Turnstile is likewise off. */
+            let tsId = null, tsWaiter = null, tsLast = '';
+            window.onTurnstileLoad = () => {
+                const el = document.getElementById('ts-widget');
+                if (!el || !window.turnstile) { return; }
+                try {
+                    tsId = window.turnstile.render(el, { sitekey: el.dataset.sitekey,
+                        callback: (t) => { tsLast = t; if (tsWaiter) { const r = tsWaiter; tsWaiter = null; r(t); } },
+                        'error-callback': () => { if (tsWaiter) { const r = tsWaiter; tsWaiter = null; r(''); } } });
+                } catch (e) {}
+            };
+            const freshToken = () => new Promise((resolve) => {
+                if (!window.turnstile || tsId === null) { resolve(''); return; }
+                tsWaiter = resolve;
+                try { window.turnstile.reset(tsId); } catch (e) {}
+                setTimeout(() => { if (tsWaiter === resolve) { tsWaiter = null; resolve(tsLast || ''); } }, 8000);
+            });
+
             f.addEventListener('submit', async (ev) => {
                 ev.preventDefault();
                 ok.hidden = true; err.hidden = true;
                 const btn = f.querySelector('button'); btn.disabled = true;
                 let res, body = {};
+                const token = await freshToken();
                 try {
                     res = await fetch(data.enter, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: 'Waitlist', email: document.getElementById('e').value, waitlist: 1 }) });
+                        body: JSON.stringify({ name: 'Waitlist', email: document.getElementById('e').value, waitlist: 1, 'cf-turnstile-response': token }) });
                     body = await res.json().catch(() => ({}));
                 } catch (e) { btn.disabled = false; err.textContent = 'Please try again.'; err.hidden = false; return; }
                 btn.disabled = false;
@@ -76,5 +102,9 @@
             }
         })();
     </script>
+
+    @if ($site->requiresEmailCode() && $turnstileSiteKey)
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
+    @endif
 </body>
 </html>

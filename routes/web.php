@@ -91,6 +91,10 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:5,1,microsite-enter')
         ->name('microsite.enter');
 
+    Route::post('/send-code', [MicrositeController::class, 'sendCode'])
+        ->middleware('throttle:10,1,microsite-send-code')
+        ->name('microsite.send-code');
+
     Route::post('/ping', [MicrositeController::class, 'ping'])
         ->middleware('throttle:30,1,microsite-ping')
         ->name('microsite.ping');

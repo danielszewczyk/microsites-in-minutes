@@ -30,18 +30,25 @@
         <h2>{{ $content['form']['heading'] ?? 'Sign up' }}</h2>
         <p class="note">{{ $content['form']['note'] ?? '' }}</p>
 
-        <div class="msg ok" id="ok" hidden></div>
-        <div class="msg err" id="err" hidden></div>
+        @if ($requiresEmailCode ?? false)
+            {{-- This site verifies entrants with an emailed code, which needs the
+                 full page. The embedded form can't run that step, so point there. --}}
+            <p><a class="btn" href="{{ $fullUrl }}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none">Enter on the full page →</a></p>
+        @else
+            <div class="msg ok" id="ok" hidden></div>
+            <div class="msg err" id="err" hidden></div>
 
-        <form id="f" method="post" action="{{ $client['enter'] }}">
-            <div><label for="n">Your name</label><input type="text" id="n" name="name" maxlength="80" required autocomplete="name"></div>
-            <div><label for="e">Email</label><input type="email" id="e" name="email" maxlength="120" autocomplete="email"></div>
-            <div><label for="p">Phone</label><input type="text" id="p" name="phone" maxlength="40" autocomplete="tel"></div>
-            <div class="hp" aria-hidden="true"><label for="w">Leave empty</label><input type="text" id="w" name="website" tabindex="-1" autocomplete="off"></div>
-            <div><button type="submit" class="btn">{{ $content['cta']['label'] ?? 'Submit' }}</button></div>
-        </form>
+            <form id="f" method="post" action="{{ $client['enter'] }}">
+                <div><label for="n">Your name</label><input type="text" id="n" name="name" maxlength="80" required autocomplete="name"></div>
+                <div><label for="e">Email</label><input type="email" id="e" name="email" maxlength="120" autocomplete="email"></div>
+                <div><label for="p">Phone</label><input type="text" id="p" name="phone" maxlength="40" autocomplete="tel"></div>
+                <div class="hp" aria-hidden="true"><label for="w">Leave empty</label><input type="text" id="w" name="website" tabindex="-1" autocomplete="off"></div>
+                <div><button type="submit" class="btn">{{ $content['cta']['label'] ?? 'Submit' }}</button></div>
+            </form>
+        @endif
     </div>
 
+    @unless ($requiresEmailCode ?? false)
     <script>
         (() => {
             const data = @json($client);
@@ -68,5 +75,6 @@
             });
         })();
     </script>
+    @endunless
 </body>
 </html>

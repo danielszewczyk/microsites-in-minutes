@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
          */
         $middleware->validateCsrfTokens(except: [
             's/*/enter',
+            's/*/send-code',
             's/*/ping',
         ]);
 

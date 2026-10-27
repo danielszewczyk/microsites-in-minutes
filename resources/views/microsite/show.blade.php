@@ -75,6 +75,13 @@
         .msg { margin: 0 0 14px; padding: 12px 16px; border-radius: 10px; font-weight: 500; }
         .msg.ok { background: color-mix(in srgb, var(--accent) 16%, var(--paper)); color: var(--ink); }
         .msg.err { background: #fee2e2; color: #991b1b; }
+        /* Email code verification: six single-digit boxes feeding a hidden field. */
+        .code-boxes { display: flex; gap: 8px; max-width: 340px; }
+        .code-boxes input { text-align: center; font-size: 1.5rem; font-weight: 700; padding: 10px 0; letter-spacing: 0; }
+        .code-meta { color: var(--muted); font-size: 0.9rem; margin: 10px 0 0; }
+        .linkbtn { background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+        .linkbtn:disabled { color: var(--muted); cursor: default; text-decoration: none; }
+        .cf-turnstile { margin: 4px 0; }
         [hidden] { display: none !important; }
         footer { padding: 32px 0 64px; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); }
         footer a { color: var(--muted); }
@@ -180,6 +187,12 @@
                         <label for="f-email">Email</label>
                         <input type="email" id="f-email" name="email" maxlength="120" autocomplete="email">
                     </div>
+                    @if ($site->requiresEmailCode())
+                        <div id="email-confirm-row">
+                            <label for="f-email-confirm">Confirm email</label>
+                            <input type="email" id="f-email-confirm" name="email_confirm" maxlength="120" autocomplete="email">
+                        </div>
+                    @endif
                     <div>
                         <label for="f-phone">Phone</label>
                         <input type="text" id="f-phone" name="phone" maxlength="40" autocomplete="tel">
@@ -212,8 +225,26 @@
                             </div>
                         </div>
                     @endif
+                    @if ($site->requiresEmailCode())
+                        <div id="code-step" hidden>
+                            <label id="code-label">Enter the 6-digit code we emailed you</label>
+                            <div class="code-boxes" role="group" aria-labelledby="code-label">
+                                @for ($i = 0; $i < 6; $i++)
+                                    <input class="code-box" inputmode="numeric" maxlength="6" pattern="[0-9]*"
+                                        autocomplete="{{ $i === 0 ? 'one-time-code' : 'off' }}" aria-label="Digit {{ $i + 1 }}">
+                                @endfor
+                            </div>
+                            <input type="hidden" id="f-code" name="code">
+                            <p class="code-meta">Can't find it? Check your spam folder.
+                                <button type="button" class="linkbtn" id="code-resend" disabled>Resend code</button>
+                                <span id="code-timer"></span></p>
+                        </div>
+                        @if ($turnstileSiteKey)
+                            <div id="ts-widget" class="cf-turnstile" data-sitekey="{{ $turnstileSiteKey }}"></div>
+                        @endif
+                    @endif
                     <div>
-                        <button type="submit" class="btn">{{ $content['cta']['label'] }}</button>
+                        <button type="submit" class="btn" id="entry-submit">{{ $content['cta']['label'] }}</button>
                     </div>
                 </form>
             </div>
@@ -321,47 +352,171 @@
             const form = $('entry-form');
             const ok = $('entry-ok');
             const err = $('entry-err');
+            const submitBtn = $('entry-submit');
+            const requireCode = !!data.require_code;
+            const showErr = (m) => { err.textContent = m; err.hidden = false; };
+
+            /* Cloudflare Turnstile token broker. The widget renders in explicit
+               mode; freshToken() resets it and resolves with a new token for each
+               server call (both send-code and enter require one). With Turnstile
+               unconfigured no widget exists and the token is empty — which the
+               server accepts only because it is likewise unconfigured. */
+            let tsId = null, tsWaiter = null, tsLast = '';
+            const settleToken = (t) => { if (tsWaiter) { const r = tsWaiter; tsWaiter = null; r(t); } };
+            window.onTurnstileLoad = () => {
+                const el = $('ts-widget');
+                if (!el || !window.turnstile) { return; }
+                try {
+                    tsId = window.turnstile.render(el, {
+                        sitekey: el.dataset.sitekey,
+                        callback: (t) => { tsLast = t; settleToken(t); },
+                        'error-callback': () => settleToken(''),
+                    });
+                } catch (e) {}
+            };
+            const freshToken = () => new Promise((resolve) => {
+                if (!window.turnstile || tsId === null) { resolve(''); return; }
+                tsWaiter = resolve;
+                try { window.turnstile.reset(tsId); } catch (e) {}
+                // Managed mode auto-runs after reset; fall back so submit never hangs.
+                setTimeout(() => { if (tsWaiter === resolve) { tsWaiter = null; resolve(tsLast || ''); } }, 8000);
+            });
+
+            /* Six-box code input writes the combined digits into hidden #f-code. */
+            if (requireCode) {
+                const boxes = Array.from(document.querySelectorAll('.code-box'));
+                const hidden = $('f-code');
+                const sync = () => { hidden.value = boxes.map((b) => b.value).join('').replace(/\D/g, '').slice(0, 6); };
+                const fill = (raw) => {
+                    const digits = (raw || '').replace(/\D/g, '').slice(0, 6).split('');
+                    boxes.forEach((b, i) => { b.value = digits[i] || ''; });
+                    sync();
+                    (boxes[Math.min(digits.length, 5)] || boxes[5]).focus();
+                };
+                boxes.forEach((box, i) => {
+                    box.addEventListener('input', () => {
+                        if (box.value.length > 1) { fill(boxes.map((b) => b.value).join('')); return; }
+                        box.value = box.value.replace(/\D/g, '');
+                        sync();
+                        if (box.value && boxes[i + 1]) { boxes[i + 1].focus(); }
+                    });
+                    box.addEventListener('keydown', (e) => {
+                        if (e.key === 'Backspace' && !box.value && boxes[i - 1]) { boxes[i - 1].focus(); }
+                    });
+                    box.addEventListener('paste', (e) => { e.preventDefault(); fill((e.clipboardData || window.clipboardData).getData('text')); });
+                });
+            }
+
+            /* Resend countdown: disable the resend link until the window passes. */
+            let codeSent = false;
+            let resendTimer = null;
+            const startCountdown = (seconds) => {
+                const link = $('code-resend'), label = $('code-timer');
+                if (!link) { return; }
+                let left = Math.max(0, parseInt(seconds, 10) || 0);
+                const tick = () => {
+                    if (left <= 0) {
+                        link.disabled = false; label.textContent = '';
+                        if (resendTimer) { clearInterval(resendTimer); resendTimer = null; }
+                        return;
+                    }
+                    link.disabled = true;
+                    label.textContent = '— new code in 0:' + String(left).padStart(2, '0');
+                    left -= 1;
+                };
+                if (resendTimer) { clearInterval(resendTimer); }
+                tick();
+                resendTimer = setInterval(tick, 1000);
+            };
+
+            const utm = () => {
+                const p = new URLSearchParams(location.search);
+                return { utm_source: p.get('utm_source') || '', utm_campaign: p.get('utm_campaign') || '', referrer: document.referrer || '' };
+            };
+
+            /* Request a code for the entered (and confirmed) email. */
+            const requestCode = async () => {
+                const email = $('f-email').value.trim();
+                const confirmEl = $('f-email-confirm');
+                const confirm = confirmEl ? confirmEl.value.trim() : email;
+                if (!email) { showErr('Please enter your email.'); return false; }
+                if (email.toLowerCase() !== confirm.toLowerCase()) { showErr('The two email addresses do not match.'); return false; }
+                const token = await freshToken();
+                let body = {};
+                try {
+                    const res = await fetch(data.send_code, {
+                        method: 'POST',
+                        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, email_confirm: confirm, website: $('f-website').value, 'cf-turnstile-response': token }),
+                    });
+                    body = await res.json().catch(() => ({}));
+                    if (!res.ok || !body.ok) { showErr(body.message || 'Could not send a code. Please try again.'); return false; }
+                } catch (e) { showErr('No connection just now. Please try again.'); return false; }
+                startCountdown(body.retry_after || data.resend_seconds || 30);
+                return true;
+            };
+
+            const resendBtn = $('code-resend');
+            if (resendBtn) {
+                resendBtn.addEventListener('click', async () => {
+                    err.hidden = true; resendBtn.disabled = true;
+                    if (! await requestCode()) { resendBtn.disabled = false; }
+                });
+            }
+
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 ok.hidden = true; err.hidden = true;
-                const button = form.querySelector('button');
-                button.disabled = true;
-                let res, body = {};
-                const params = new URLSearchParams(location.search);
-                let opts;
+                submitBtn.disabled = true;
+
+                // Step 1 (code add-on): send a code, then reveal the code input.
+                if (requireCode && !codeSent) {
+                    const sent = await requestCode();
+                    submitBtn.disabled = false;
+                    if (sent !== true) { return; }
+                    codeSent = true;
+                    $('code-step').hidden = false;
+                    submitBtn.textContent = 'Verify & enter';
+                    const first = document.querySelector('.code-box');
+                    if (first) { first.focus(); }
+                    $('code-step').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                }
+
+                if (requireCode && ($('f-code').value || '').length !== 6) {
+                    submitBtn.disabled = false; showErr('Enter the 6-digit code we emailed you.'); return;
+                }
+
+                const token = requireCode ? await freshToken() : '';
+                let res, body = {}, opts;
+                const extra = utm();
                 if (photoBlob) {
-                    // A photo was captured: send everything as multipart.
                     const fd = new FormData(form);
                     fd.append('photo', photoBlob, 'smile.jpg');
-                    fd.set('utm_source', params.get('utm_source') || '');
-                    fd.set('utm_campaign', params.get('utm_campaign') || '');
-                    fd.set('referrer', document.referrer || '');
+                    Object.entries(extra).forEach(([k, v]) => fd.set(k, v));
+                    if (requireCode) { fd.set('cf-turnstile-response', token); }
                     opts = { method: 'POST', headers: { Accept: 'application/json' }, body: fd };
                 } else {
-                    const payload = Object.fromEntries(new FormData(form));
-                    payload.utm_source = params.get('utm_source') || '';
-                    payload.utm_campaign = params.get('utm_campaign') || '';
-                    payload.referrer = document.referrer || '';
+                    const payload = Object.assign(Object.fromEntries(new FormData(form)), extra);
+                    if (requireCode) { payload['cf-turnstile-response'] = token; }
                     opts = { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
                 }
                 try {
                     res = await fetch(data.enter, opts);
                     body = await res.json().catch(() => ({}));
                 } catch (e) {
-                    button.disabled = false;
-                    err.textContent = 'No connection just now. Please try again.';
-                    err.hidden = false;
+                    submitBtn.disabled = false;
+                    showErr('No connection just now. Please try again.');
                     return;
                 }
-                button.disabled = false;
+                submitBtn.disabled = false;
                 if (res.ok && body.ok) {
                     form.hidden = true;
                     ok.textContent = body.message || 'Thanks — you are all set.';
                     ok.hidden = false;
                 } else {
                     const first = body.errors ? Object.values(body.errors)[0][0] : (body.message || 'Please check the form and try again.');
-                    err.textContent = first;
-                    err.hidden = false;
+                    showErr(first);
                 }
             });
 
@@ -403,6 +558,11 @@
             window.addEventListener('pagehide', sendDwell);
         })();
     </script>
+
+    @if ($site->requiresEmailCode() && $turnstileSiteKey)
+        {{-- Cloudflare Turnstile: the one extra external script a page may load, and only when the email-code add-on and keys are set. --}}
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
+    @endif
 
     @if ($ga4)
         {{-- The owner's own Google Analytics 4 tag: the one external script a page may load, and only when they add an ID. --}}
