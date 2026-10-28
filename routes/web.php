@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AlarmController;
+use App\Http\Controllers\ApiTokenShareController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\MicrositeController;
@@ -61,6 +62,19 @@ Route::get('/l/{code}', [ShortLinkController::class, 'redirect'])
     ->name('link.redirect');
 
 /*
+ * A one-time link that reveals a site's Import-API credentials once, so the
+ * owner can hand them to a developer without putting the token in plaintext.
+ */
+Route::get('/dev-credentials/{id}', [ApiTokenShareController::class, 'show'])
+    ->where('id', '[A-Za-z0-9]{1,64}')
+    ->middleware('throttle:30,1,api-token-reveal')
+    ->name('api-token.reveal');
+Route::post('/dev-credentials/{id}', [ApiTokenShareController::class, 'reveal'])
+    ->where('id', '[A-Za-z0-9]{1,64}')
+    ->middleware('throttle:30,1,api-token-reveal-confirm')
+    ->name('api-token.reveal.confirm');
+
+/*
  * A published microsite and everything that hangs off it. The slug is the only
  * dynamic segment and is pinned to a safe shape. Each route names its own
  * throttle counter so a flood of one kind of request cannot starve another.
@@ -119,6 +133,8 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
     Route::get('/manage/entries.csv', [SiteManageController::class, 'exportEntries'])->name('microsite.entries.export');
     Route::get('/manage/stats.json', [SiteManageController::class, 'stats'])
         ->middleware('throttle:120,1,manage-stats')->name('microsite.stats');
+    Route::post('/manage/api-token/share', [ApiTokenShareController::class, 'create'])
+        ->middleware('throttle:10,1,api-token-share')->name('microsite.api-token.share');
     Route::get('/entries/{entry}/photo', [SiteManageController::class, 'entryPhoto'])
         ->whereNumber('entry')
         ->middleware('throttle:300,1,entry-photo')

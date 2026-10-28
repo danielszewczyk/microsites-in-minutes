@@ -23,20 +23,25 @@ class ManageTest extends TestCase
             ->assertSee('Edit &amp; regenerate', false);
     }
 
-    public function test_manage_offers_sharing_the_link_by_email(): void
+    public function test_manage_header_shows_a_persistent_url_with_a_copy_button_and_no_email_share(): void
     {
         $site = Site::factory()->withToken('secret-token')->create();
 
         $this->withCookie($site->cookieName(), 'secret-token')
             ->get(route('microsite.manage', $site->slug))
             ->assertOk()
-            ->assertSee('Email the link')
-            ->assertSee('mailto:?subject=', false)
+            // The live URL is persistent in the header, with a Copy URL button (#13).
+            ->assertSee('id="site-url"', false)
+            ->assertSee('Copy URL')
+            ->assertSee($site->url(), false)
+            // Email-share is gone (#12) — no "Email the link" and no mailto: links.
+            ->assertDontSee('Email the link')
+            ->assertDontSee('mailto:', false)
             // The create-only copy button is absent on an ordinary visit (no 'created' flash).
             ->assertDontSee('id="created-copy"', false);
     }
 
-    public function test_manage_documents_the_import_api_with_the_real_endpoint_and_token(): void
+    public function test_manage_documents_the_import_api_and_hides_the_token_behind_reveal(): void
     {
         $site = Site::factory()->withToken('secret-token')->create();
 
@@ -45,9 +50,95 @@ class ManageTest extends TestCase
             ->assertOk()
             ->assertSee('Import API')
             ->assertSee(route('api.entries.store', $site->slug, absolute: true), false)
-            ->assertSee('Authorization: Bearer secret-token', false)
             ->assertSee('curl -X POST', false)
-            ->assertSee('Rate limit');
+            ->assertSee('Rate limit')
+            // The token is no longer printed in plaintext on screen...
+            ->assertDontSee('Authorization: Bearer secret-token', false)
+            // ...it sits behind a Reveal toggle, in a data attribute for the JS.
+            ->assertSee('Reveal token')
+            ->assertSee('data-token="secret-token"', false);
+    }
+
+    public function test_api_token_share_link_reveals_the_credentials_once(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->post(route('microsite.api-token.share', $site->slug))
+            ->assertRedirect()
+            ->assertSessionHas('api_share_url');
+
+        $url = session('api_share_url');
+        $this->assertIsString($url);
+
+        // Opening the link (GET) shows a confirm page and does NOT reveal or
+        // consume the token — so a link-preview bot's fetch can't burn it.
+        $this->get($url)
+            ->assertOk()
+            ->assertSee('Reveal credentials')
+            ->assertDontSee('secret-token');
+
+        $id = basename(parse_url($url, PHP_URL_PATH));
+
+        // Confirming (POST) reveals the endpoint and token, once.
+        $this->post(route('api-token.reveal.confirm', $id))
+            ->assertOk()
+            ->assertSee('secret-token')
+            ->assertSee(route('api.entries.store', $site->slug, absolute: true), false);
+
+        // The link is single-use: confirming again is spent, and the GET
+        // confirm page now reports the link as expired.
+        $this->post(route('api-token.reveal.confirm', $id))
+            ->assertOk()
+            ->assertSee('expired')
+            ->assertDontSee('secret-token');
+
+        $this->get($url)->assertOk()->assertSee('expired');
+    }
+
+    public function test_api_token_share_needs_the_manage_token(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+
+        $this->post(route('microsite.api-token.share', $site->slug))->assertForbidden();
+    }
+
+    public function test_an_unknown_share_link_shows_the_spent_state(): void
+    {
+        $id = str_repeat('a', 40);
+
+        $this->get(route('api-token.reveal', $id))->assertOk()->assertSee('expired');
+        $this->post(route('api-token.reveal.confirm', $id))->assertOk()->assertSee('expired');
+    }
+
+    public function test_google_search_preview_shows_a_favicon_with_a_default_fallback(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->get(route('microsite.manage', $site->slug))
+            ->assertOk()
+            ->assertSee('Google search preview')
+            ->assertSee(route('microsite.favicon', $site->slug), false);
+
+        // The favicon endpoint returns a generated default mark when none is
+        // uploaded, so the preview always has an icon to show.
+        $this->get(route('microsite.favicon', $site->slug))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/svg+xml');
+    }
+
+    public function test_free_tier_storage_allowance_is_ten_megabytes(): void
+    {
+        $this->assertSame(10, config('plans.tiers.free.storage_mb'));
+
+        $site = Site::factory()->withToken('secret-token')->create();
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->get(route('microsite.manage', $site->slug))
+            ->assertOk()
+            ->assertSee('Storage')
+            ->assertSee('10 MB');
     }
 
     public function test_the_live_stats_endpoint_is_owner_gated_and_returns_counts(): void

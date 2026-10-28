@@ -41,22 +41,38 @@
         fieldset { border: 1px dashed var(--line); border-radius: 12px; padding: 18px; }
         legend { font-weight: 700; }
         .err { background: #fee2e2; color: #991b1b; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; }
+        /* Destructive actions (delete an alarm, a link; remove a domain). */
+        .rm { background: transparent; color: #b91c1c; border: 1px solid color-mix(in srgb, #b91c1c 35%, var(--line)); border-radius: 9px; padding: 8px 14px; font: inherit; font-weight: 600; font-size: 0.85rem; line-height: 1; cursor: pointer; }
+        .rm:hover { background: #fee2e2; border-color: #b91c1c; }
+        @media (prefers-color-scheme: dark) { .rm:hover { background: color-mix(in srgb, #b91c1c 28%, var(--card)); color: #fecaca; } }
+        /* Add-alarm row: labels above compact controls, all the same height. */
+        .alarm-add { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; }
+        .alarm-add .fld { display: flex; flex-direction: column; gap: 5px; }
+        .alarm-add label { font-size: 0.8rem; font-weight: 600; margin: 0; }
+        .alarm-add select, .alarm-add input { padding: 10px 12px; height: 42px; }
+        .alarm-add select { width: auto; }
+        .alarm-add input[type=number] { width: 130px; }
+        .alarm-add .btn { padding: 0 22px; height: 42px; }
+        .alarm-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding: 10px 0; }
+        .alarm-row:first-of-type { border-top: 1px solid var(--line); }
+        /* Inline copy button next to the live URL in the header. */
+        .url-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 0; }
+        .url-bar code { font-family: ui-monospace, monospace; font-size: 0.85rem; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; word-break: break-all; }
+        .copy-inline { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
     </style>
 </head>
 <body>
-    {{-- One subject/line for every "share via email" link: opens the owner's own
-         mail app pre-filled, so it sends from their address (no app-side sending). --}}
-    @php($shareName = $site->content['hero']['headline'] ?? ($inputs['business_name'] ?? 'my page'))
-    @php($shareSubject = rawurlencode('Check out '.$shareName))
-    @php($mailtoFor = fn (string $url): string => 'mailto:?subject='.$shareSubject.'&body='.rawurlencode($shareName.' — '.$url))
     <header>
         <div class="wrap" style="padding-bottom:0">
             <h1>{{ $inputs['business_name'] ?? 'Your site' }}</h1>
             <p class="muted" style="margin:0">
                 <a href="{{ $site->url() }}" target="_blank" rel="noopener">View live site &nearr;</a>
-                · <a href="{{ $mailtoFor($site->url()) }}">Email the link</a>
                 · {{ ucfirst($site->type) }} · {{ $plan['name'] }} plan
             </p>
+            <div class="url-bar">
+                <code id="site-url">{{ $site->url() }}</code>
+                <button type="button" class="copy-inline" id="url-copy" data-copy="{{ $site->url() }}">Copy URL</button>
+            </div>
         </div>
     </header>
 
@@ -70,8 +86,7 @@
                 </p>
                 <p class="muted">Live link (share this):</p>
                 <p class="share" id="created-url">{{ session('created')['url'] }}</p>
-                <button type="button" class="btn" id="created-copy" data-copy="{{ session('created')['url'] }}" style="width:auto;display:inline-block;margin-top:10px;margin-right:8px;padding:11px 18px">📋&nbsp; Copy link</button>
-                <a class="btn" style="width:auto;display:inline-block;margin-top:10px;padding:11px 18px;text-decoration:none" href="{{ $mailtoFor(session('created')['url']) }}">✉&nbsp; Share via email</a>
+                <button type="button" class="btn" id="created-copy" data-copy="{{ session('created')['url'] }}" style="width:auto;display:inline-block;margin-top:10px;padding:11px 18px">📋&nbsp; Copy link</button>
                 <p class="muted" style="margin-top:14px">Manage link (bookmark this to edit later — keep it private):</p>
                 <p class="share">{{ session('created')['manage_url'] }}</p>
             </div>
@@ -212,8 +227,18 @@
             <h2 style="margin-top:0;font-size:1.2rem">Google search preview</h2>
             <p class="muted" style="margin-top:0">How your page title and description show in search. Edit them in "Edit &amp; regenerate" below.</p>
             <div style="border:1px solid var(--line);border-radius:10px;padding:16px 18px;max-width:600px;background:#fff">
-                <div style="color:#202124;font-size:0.82rem">{{ $og['host'] }} › {{ $site->slug }}</div>
-                <div style="color:#1a0dab;font-size:1.25rem;line-height:1.3;margin:2px 0">{{ \Illuminate\Support\Str::limit($og['title'], 60) }}</div>
+                <div style="display:flex;align-items:center;gap:10px">
+                    {{-- Google shows the site's favicon; we fall back to the site's
+                         generated default mark when none is uploaded (#17). --}}
+                    <span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid #dadce0;border-radius:50%;overflow:hidden;background:#fff;flex:none">
+                        <img src="{{ route('microsite.favicon', $site->slug) }}" alt="" width="18" height="18" style="display:block">
+                    </span>
+                    <div style="line-height:1.3">
+                        <div style="color:#202124;font-size:0.82rem">{{ $inputs['business_name'] ?? $og['host'] }}</div>
+                        <div style="color:#5f6368;font-size:0.78rem">{{ $og['host'] }} › {{ $site->slug }}</div>
+                    </div>
+                </div>
+                <div style="color:#1a0dab;font-size:1.25rem;line-height:1.3;margin:6px 0 2px">{{ \Illuminate\Support\Str::limit($og['title'], 60) }}</div>
                 <div style="color:#4d5156;font-size:0.88rem;line-height:1.4">{{ \Illuminate\Support\Str::limit($og['description'], 160) ?: 'Add a meta description to control this text.' }}</div>
             </div>
         </div>
@@ -226,7 +251,6 @@
                 <label>Tagged link preview</label>
                 <input type="text" id="utm-preview" readonly value="{{ $site->url() }}" style="font-family:ui-monospace,monospace;font-size:0.82rem">
                 <button type="button" class="btn" id="utm-copy" style="margin-top:8px;padding:9px 16px">Copy</button>
-                <button type="button" class="btn" id="utm-email" style="margin-top:8px;margin-left:8px;padding:9px 16px;background:transparent;color:var(--accent);border:1px solid var(--accent)">Email</button>
             </div>
 
             <form method="post" action="{{ route('microsite.links.store', $site->slug) }}">
@@ -269,23 +293,30 @@
             <h2 style="margin-top:0;font-size:1.2rem">Where it's coming from</h2>
             <p class="muted" style="margin-top:0">Views, entries and conversion by source — counted on our side, no cookies or consent banner.</p>
             @php($reportTable = function ($label, $rows) {
-                if (empty($rows)) {
-                    return '<p class="muted">No '.$label.' data yet.</p>';
-                }
                 $html = '<table><thead><tr><th>'.$label.'</th><th>Views</th><th>Entries</th><th>Conv.</th></tr></thead><tbody>';
                 foreach ($rows as $r) {
                     $html .= '<tr><td>'.e($r['key']).'</td><td>'.number_format($r['views']).'</td><td>'.number_format($r['entries']).'</td><td>'.number_format($r['conv'], 1).'%</td></tr>';
                 }
                 return $html.'</tbody></table>';
             })
-            <div style="display:grid;grid-template-columns:1fr;gap:22px">
-                <div>{!! $reportTable('Source', $breakdowns['source']) !!}</div>
-                <div>{!! $reportTable('Device', $breakdowns['device']) !!}</div>
-            </div>
-            @if (!empty($breakdowns['campaign']))
-                <div style="margin-top:18px">{!! $reportTable('Campaign', $breakdowns['campaign']) !!}</div>
+            @php($hasSourceData = ! empty($breakdowns['source']) || ! empty($breakdowns['device']) || ! empty($breakdowns['campaign']))
+            @if (! $hasSourceData)
+                {{-- One empty state for the whole section, not one per table. --}}
+                <p class="muted" style="margin:0">No traffic yet. Once people visit, you'll see where they came from — source, device and campaign — right here. Tag your links with the UTM builder above to label each channel.</p>
+            @else
+                <div style="display:grid;grid-template-columns:1fr;gap:22px">
+                    @if (! empty($breakdowns['source']))
+                        <div>{!! $reportTable('Source', $breakdowns['source']) !!}</div>
+                    @endif
+                    @if (! empty($breakdowns['device']))
+                        <div>{!! $reportTable('Device', $breakdowns['device']) !!}</div>
+                    @endif
+                </div>
+                @if (! empty($breakdowns['campaign']))
+                    <div style="margin-top:18px">{!! $reportTable('Campaign', $breakdowns['campaign']) !!}</div>
+                @endif
+                <p class="muted" style="font-size:0.8rem;margin:12px 0 0">Tag your links with <code>?utm_source=…&amp;utm_campaign=…</code> to see each channel here. Export includes the source per entry.</p>
             @endif
-            <p class="muted" style="font-size:0.8rem;margin:12px 0 0">Tag your links with <code>?utm_source=…&amp;utm_campaign=…</code> to see each channel here. Export includes the source per entry.</p>
         </div>
 
         <div class="card">
@@ -412,19 +443,27 @@
 
         <div class="card">
             <h2 style="margin-top:0;font-size:1.2rem">Alarms</h2>
-            <p class="muted" style="margin-top:0">Get an email when this site crosses a threshold.</p>
-            @foreach ($alarms as $alarm)
-                <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0">
-                    <span>At <strong>{{ $alarm->label() }}</strong> → email {{ $alarm->email }}
+            <p class="muted" style="margin-top:0">Get an email at <strong>{{ $site->owner->email }}</strong> when this site crosses a threshold.</p>
+            @forelse ($alarms as $alarm)
+                <div class="alarm-row">
+                    <span>At <strong>{{ $alarm->label() }}</strong>
                         @if ($alarm->triggered_at)<span class="muted" style="font-size:0.8rem">· triggered {{ $alarm->triggered_at->diffForHumans() }}</span>@endif
                     </span>
                     <form method="post" action="{{ route('microsite.alarms.destroy', [$site->slug, $alarm]) }}">@csrf<button class="rm" type="submit">Delete</button></form>
                 </div>
-            @endforeach
-            <form method="post" action="{{ route('microsite.alarms.store', $site->slug) }}" style="display:flex;gap:8px;align-items:end;margin-top:12px;flex-wrap:wrap">
+            @empty
+                <p class="muted" style="margin:0">No alarms yet. Add one below to be emailed when you hit a milestone.</p>
+            @endforelse
+            <form method="post" action="{{ route('microsite.alarms.store', $site->slug) }}" class="alarm-add">
                 @csrf
-                <div><label style="font-size:0.85rem">When</label><select name="metric" style="width:auto"><option value="views">views</option><option value="entries">entries</option><option value="storage">storage (MB)</option></select></div>
-                <div><label style="font-size:0.85rem">reaches</label><input type="number" name="threshold" min="1" value="100" style="width:120px"></div>
+                <div class="fld">
+                    <label for="alarm-metric">When</label>
+                    <select id="alarm-metric" name="metric"><option value="views">views</option><option value="entries">entries</option><option value="storage">storage (MB)</option></select>
+                </div>
+                <div class="fld">
+                    <label for="alarm-threshold">reaches</label>
+                    <input type="number" id="alarm-threshold" name="threshold" min="1" value="100">
+                </div>
                 <button class="btn" type="submit">Add alarm</button>
             </form>
         </div>
@@ -447,7 +486,25 @@
 
             <p style="margin:14px 0 4px;font-weight:600">Authentication</p>
             <p class="muted" style="margin:0 0 6px">Send your <strong>manage token</strong> as a bearer token. It's the same private secret that opens this dashboard — treat it like a password, and only from your server (never in client-side code).</p>
-            <pre style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">Authorization: Bearer {{ $apiToken }}</pre>
+            <pre id="api-auth" data-token="{{ $apiToken }}" style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">Authorization: Bearer <span id="token-text">••••••••••••••••••••</span></pre>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                <button type="button" class="btn" id="token-reveal" style="padding:9px 16px;width:auto;display:inline-block">Reveal token</button>
+                <button type="button" class="btn" id="token-copy" style="padding:9px 16px;width:auto;display:inline-block;background:transparent;color:var(--accent);border:1px solid var(--accent)">Copy token</button>
+            </div>
+            <p class="muted" style="font-size:0.8rem;margin:8px 0 0">Hidden by default so it isn't exposed on a screen share or screenshot.</p>
+
+            <p style="margin:16px 0 4px;font-weight:600">Hand it to a developer securely</p>
+            <p class="muted" style="margin:0 0 6px">Generate a link that shows the endpoint and token <strong>once</strong>, then stops working. Send it to your developer over your usual channel — the token never sits in plaintext in your message.</p>
+            @if (session('api_share_url'))
+                <div class="share" style="margin-bottom:8px"><a href="{{ session('api_share_url') }}" id="api-share-url" target="_blank" rel="noopener">{{ session('api_share_url') }}</a></div>
+                <button type="button" class="btn" id="api-share-copy" data-copy="{{ session('api_share_url') }}" style="padding:9px 16px;width:auto;display:inline-block">Copy link</button>
+                <p class="muted" style="font-size:0.8rem;margin:8px 0 0">Opens once, then expires within an hour. Generate a new link each time you share.</p>
+            @else
+                <form method="post" action="{{ route('microsite.api-token.share', $site->slug) }}">
+                    @csrf
+                    <button type="submit" class="btn" style="padding:9px 16px;width:auto;display:inline-block">Create one-time share link</button>
+                </form>
+            @endif
 
             <p style="margin:14px 0 4px;font-weight:600">Fields</p>
             <ul class="muted" style="margin:0;font-size:0.9rem;padding-left:18px">
@@ -459,8 +516,8 @@
             </ul>
 
             <p style="margin:14px 0 4px;font-weight:600">Example — one entry</p>
-            <pre id="api-curl" style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">curl -X POST {{ $apiEndpoint }} \
-  -H "Authorization: Bearer {{ $apiToken }}" \
+            <pre id="api-curl" data-token="{{ $apiToken }}" style="background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:0.8rem">curl -X POST {{ $apiEndpoint }} \
+  -H "Authorization: Bearer <span id="curl-token">••••••••••••••••••••</span>" \
   -H "Content-Type: application/json" \
   -d '{"name":"Jane Doe","email":"jane@example.com","source":"crm"}'</pre>
             <button type="button" class="btn" id="api-copy" style="margin-top:8px;padding:9px 16px;width:auto;display:inline-block">Copy</button>
@@ -733,6 +790,12 @@
                 b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
             });
 
+            /* A successful publish clears the saved builder draft (#7), so the
+               next visit to the builder starts fresh rather than restoring it. */
+            if (document.getElementById('created-url')) {
+                try { localStorage.removeItem('mim:builder-draft'); } catch (e) { /* no-op */ }
+            }
+
             /* Copy the live link straight from the just-created banner. */
             document.getElementById('created-copy')?.addEventListener('click', async () => {
                 const b = document.getElementById('created-copy');
@@ -741,16 +804,53 @@
                 b.textContent = '✓ Copied'; setTimeout(() => { b.textContent = '📋 Copy link'; }, 1500);
             });
 
-            /* Email the current (possibly UTM-tagged) link from the owner's mail app. */
-            document.getElementById('utm-email')?.addEventListener('click', () => {
-                const name = @json($shareName);
-                window.location.href = 'mailto:?subject=' + encodeURIComponent('Check out ' + name)
-                    + '&body=' + encodeURIComponent(name + ' — ' + preview.value);
+            /* Copy the site's live URL from the persistent header bar. */
+            document.getElementById('url-copy')?.addEventListener('click', async (e) => {
+                const b = e.currentTarget;
+                try { await navigator.clipboard.writeText(b.dataset.copy || ''); } catch (err) { /* no-op */ }
+                b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy URL'; }, 1500);
             });
 
-            /* Copy the Import API curl example. */
+            /* Import API token: hidden behind a Reveal toggle so it isn't exposed
+               on a screen share, and copied without ever showing it on screen. */
+            const MASK = '••••••••••••••••••••';
+            const apiAuth = document.getElementById('api-auth');
+            const apiToken = apiAuth ? apiAuth.dataset.token : '';
+            const tokenText = document.getElementById('token-text');
+            const curlToken = document.getElementById('curl-token');
+            let tokenShown = false;
+
+            const applyToken = () => {
+                const shown = tokenShown ? apiToken : MASK;
+                if (tokenText) { tokenText.textContent = shown; }
+                if (curlToken) { curlToken.textContent = shown; }
+            };
+
+            document.getElementById('token-reveal')?.addEventListener('click', () => {
+                tokenShown = !tokenShown;
+                applyToken();
+                document.getElementById('token-reveal').textContent = tokenShown ? 'Hide token' : 'Reveal token';
+            });
+
+            const flash = (btn, label) => { const t = btn.textContent; btn.textContent = label; setTimeout(() => { btn.textContent = t; }, 1500); };
+
+            document.getElementById('token-copy')?.addEventListener('click', async (e) => {
+                try { await navigator.clipboard.writeText(apiToken); } catch (err) { /* no-op */ }
+                flash(e.currentTarget, 'Copied');
+            });
+
+            document.getElementById('api-share-copy')?.addEventListener('click', async (e) => {
+                try { await navigator.clipboard.writeText(e.currentTarget.dataset.copy || ''); } catch (err) { /* no-op */ }
+                flash(e.currentTarget, 'Copied');
+            });
+
+            /* Copy the Import API curl example — always with the real token, even
+               while it is masked on screen (copying is an explicit action). */
             document.getElementById('api-copy')?.addEventListener('click', async () => {
-                const code = document.getElementById('api-curl').textContent;
+                const curl = document.getElementById('api-curl');
+                const realToken = curl.dataset.token || '';
+                // Function replacement so a token containing '$' is inserted literally.
+                const code = curl.textContent.replace(MASK, () => realToken);
                 try { await navigator.clipboard.writeText(code); } catch (e) { /* no-op */ }
                 const b = document.getElementById('api-copy');
                 b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500);
