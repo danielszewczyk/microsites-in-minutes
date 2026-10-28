@@ -20,6 +20,18 @@ class BannerImage
     /** The largest image the server will decode at all (GD holds ~4 bytes/pixel). */
     public const int MAX_PIXELS = 16_000_000;
 
+    /**
+     * Compress a stored image down toward this many bytes: the encoder starts at
+     * a high quality and steps the quality down until the result fits (or hits
+     * the floor), so uploads don't blow the small free-storage allowance.
+     */
+    public const int TARGET_BYTES = 600 * 1024;
+
+    /** Where JPEG quality starts, and the lowest it will drop to chasing the target. */
+    protected const int START_QUALITY = 82;
+
+    protected const int MIN_QUALITY = 55;
+
     public static function redraw(UploadedFile $file, string $field = 'file', ?int $maxEdge = null): string
     {
         $maxEdge ??= self::MAX_EDGE;
@@ -57,8 +69,30 @@ class BannerImage
 
         $canvas = self::upright($canvas, $file, (int) ($size[2] ?? 0));
 
+        // Automatic compression: encode high, then step the quality down until
+        // the JPEG fits the target size or reaches the quality floor, so even a
+        // large upload is stored small. The last step clamps to MIN_QUALITY so
+        // the floor is always actually tried.
+        $quality = self::START_QUALITY;
+        $binary = self::encode($canvas, $quality);
+
+        while (strlen($binary) > self::TARGET_BYTES && $quality > self::MIN_QUALITY) {
+            $quality = max(self::MIN_QUALITY, $quality - 10);
+            $binary = self::encode($canvas, $quality);
+        }
+
+        imagedestroy($canvas);
+
+        return $binary;
+    }
+
+    /**
+     * Encode a canvas to a JPEG string at the given quality.
+     */
+    protected static function encode(GdImage $image, int $quality): string
+    {
         ob_start();
-        imagejpeg($canvas, null, 82);
+        imagejpeg($image, null, $quality);
 
         return (string) ob_get_clean();
     }

@@ -50,7 +50,7 @@ return [
             'free_build_minutes' => 1,
             'monthly_views' => 2_000,
             'monthly_entries' => 100,
-            'storage_mb' => 50,
+            'storage_mb' => 10,
             'custom_domain' => false,
             'remove_branding' => false,
             'analytics' => false,

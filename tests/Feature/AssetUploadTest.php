@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Site;
 use App\Models\SiteAsset;
+use App\Support\BannerImage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -105,6 +106,21 @@ class AssetUploadTest extends TestCase
 
         Storage::disk(SiteAsset::DISK)->assertMissing($first);
         $this->assertSame(1, $site->assets()->where('slot', SiteAsset::BANNER_MOBILE)->count());
+    }
+
+    public function test_uploaded_banners_are_compressed_under_the_target_size(): void
+    {
+        $site = Site::factory()->withToken('tok')->create();
+
+        $this->withCookie($site->cookieName(), 'tok')->post(route('microsite.upload.store', $site->slug), [
+            SiteAsset::BANNER_DESKTOP => UploadedFile::fake()->image('big.jpg', 2400, 1260),
+        ])->assertRedirect();
+
+        $banner = $site->assets()->where('slot', SiteAsset::BANNER_DESKTOP)->first();
+
+        // Automatic compression bounds the stored size regardless of the upload.
+        $this->assertGreaterThan(0, $banner->size);
+        $this->assertLessThanOrEqual(BannerImage::TARGET_BYTES, $banner->size);
     }
 
     public function test_upload_changes_the_site_version(): void
