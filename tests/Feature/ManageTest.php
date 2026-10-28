@@ -59,8 +59,8 @@ class ManageTest extends TestCase
         $this->withCookie($site->cookieName(), 'secret-token')
             ->get(route('microsite.stats', $site->slug), ['Accept' => 'application/json'])
             ->assertOk()
-            ->assertJson(['views' => 10, 'entries' => 3])
-            ->assertJsonStructure(['views', 'entries', 'conversion', 'dwell', 'live', 'days']);
+            ->assertJson(['views' => 10, 'entries' => 3, 'range' => 'month'])
+            ->assertJsonStructure(['views', 'entries', 'conversion', 'dwell', 'live', 'range', 'caption', 'series']);
     }
 
     public function test_a_recent_viewer_shows_as_live_on_the_dashboard(): void

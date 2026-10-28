@@ -24,6 +24,9 @@
         @keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 14px; }
         .bars i { flex: 1; background: var(--accent); min-height: 2px; border-radius: 2px 2px 0 0; opacity: 0.85; }
+        .ranges { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 2px; }
+        .ranges .range { font-size: 0.8rem; padding: 4px 11px; border: 1px solid rgba(0, 0, 0, 0.12); background: transparent; color: var(--muted); border-radius: 999px; cursor: pointer; }
+        .ranges .range.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
         table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
         th { color: var(--muted); font-weight: 600; }
@@ -95,13 +98,18 @@
                 @php($avg = $site->avgDwellSeconds())
                 <div class="stat"><b id="stat-dwell">{{ $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—' }}</b><span>avg. time on page</span></div>
             </div>
-            @php($peak = max(1, collect($stats)->max('views')))
-            <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" title="Views per day, last 30 days">
-                @foreach ($stats as $day)
-                    <i style="height: {{ max(2, (int) round($day['views'] / $peak * 60)) }}px" title="{{ $day['date'] }}: {{ $day['views'] }} views, {{ $day['entries'] }} entries"></i>
+            <div class="ranges" id="stat-ranges">
+                @foreach (['hour' => 'Hour', 'day' => 'Day', 'week' => 'Week', 'month' => 'Month', 'year' => 'Year'] as $key => $label)
+                    <button type="button" class="range{{ $key === $statRange ? ' is-active' : '' }}" data-range="{{ $key }}" aria-pressed="{{ $key === $statRange ? 'true' : 'false' }}">{{ $label }}</button>
                 @endforeach
             </div>
-            <p class="muted" style="font-size:0.82rem;margin:8px 0 0">Views per day, last 30 days (built-in analytics) · <span class="muted">updates live</span></p>
+            @php($peak = max(1, collect($stats)->max('views')))
+            <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" data-range="{{ $statRange }}">
+                @foreach ($stats as $point)
+                    <i style="height: {{ max(2, (int) round($point['views'] / $peak * 60)) }}px" title="{{ $point['label'] }}: {{ $point['views'] }} views, {{ $point['entries'] }} entries"></i>
+                @endforeach
+            </div>
+            <p class="muted" style="font-size:0.82rem;margin:8px 0 0"><span id="stat-caption">{{ $statCaption }}</span> (built-in analytics) · <span class="muted">updates live</span></p>
         </div>
 
         <div class="card">
@@ -641,6 +649,7 @@
             const bars = document.getElementById('stat-bars');
             if (!bars) { return; }
             const url = bars.dataset.url;
+            let range = bars.dataset.range || 'month';
             const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             const set = (id, v) => { const el = document.getElementById(id); if (el) { el.textContent = v; } };
             const num = (el) => parseFloat((el.textContent || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -662,9 +671,17 @@
                 requestAnimationFrame(tick);
             };
 
+            const renderBars = (series) => {
+                const peak = Math.max(1, ...series.map((x) => x.views));
+                bars.innerHTML = series.map((x) => {
+                    const h = Math.max(2, Math.round(x.views / peak * 60));
+                    return `<i style="height:${h}px" title="${x.label}: ${x.views} views, ${x.entries} entries"></i>`;
+                }).join('');
+            };
+
             const refresh = async () => {
                 try {
-                    const r = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+                    const r = await fetch(`${url}?range=${encodeURIComponent(range)}`, { headers: { Accept: 'application/json' }, cache: 'no-store' });
                     if (!r.ok) { return; }
                     const d = await r.json();
                     countTo('stat-views', Number(d.views));
@@ -672,13 +689,25 @@
                     countTo('stat-conv', Number(d.conversion), 1, '%');
                     set('stat-dwell', d.dwell);
                     set('stat-live', String(d.live ?? 0));
-                    const peak = Math.max(1, ...d.days.map((x) => x.views));
-                    bars.innerHTML = d.days.map((x) => {
-                        const h = Math.max(2, Math.round(x.views / peak * 60));
-                        return `<i style="height:${h}px" title="${x.date}: ${x.views} views, ${x.entries} entries"></i>`;
-                    }).join('');
+                    if (Array.isArray(d.series)) { renderBars(d.series); }
+                    if (d.caption) { set('stat-caption', d.caption); }
                 } catch (e) { /* keep the last render on a hiccup */ }
             };
+
+            /* Range toggles re-point the chart (Hour/Day/Week/Month/Year) without a reload. */
+            const tabs = document.querySelectorAll('#stat-ranges .range');
+            tabs.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    range = btn.dataset.range;
+                    tabs.forEach((b) => {
+                        const on = b === btn;
+                        b.classList.toggle('is-active', on);
+                        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    });
+                    refresh();
+                });
+            });
+
             setInterval(refresh, 3000);
             document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); } });
         })();

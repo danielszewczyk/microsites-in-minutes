@@ -21,7 +21,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -73,7 +72,7 @@ class MicrositeController extends Controller
             fn (): string => view($view, $this->viewData($site))->render(),
         );
 
-        dispatch(RecordSiteHit::forToday($site->id, TrafficSource::fromRequest($request)))->afterResponse();
+        dispatch(RecordSiteHit::forNow($site->id, TrafficSource::fromRequest($request)))->afterResponse();
 
         return response($html)->withHeaders([
             'Content-Type' => 'text/html; charset=UTF-8',
@@ -284,9 +283,15 @@ class MicrositeController extends Controller
 
         Site::withoutTimestamps(fn () => $site->increment('entry_count'));
 
-        $day = Carbon::today()->toDateString();
-        RecordSiteHit::bump($site->id, $day, 'entries');
-        RecordSiteHit::breakdowns($site->id, $dims, 'entries');
+        // Analytics roll-ups must never sink a successful entry: the entry is
+        // already saved, so a stats write that fails (e.g. a DB hiccup) is logged
+        // and swallowed rather than 500-ing the visitor's submission.
+        try {
+            RecordSiteHit::record($site->id, 'entries', now());
+            RecordSiteHit::breakdowns($site->id, $dims, 'entries');
+        } catch (\Throwable $e) {
+            Log::warning('Entry stats recording failed', ['site' => $site->id, 'error' => $e->getMessage()]);
+        }
 
         SiteAlarm::checkFor($site->refresh(), [SiteAlarm::ENTRIES]);
 

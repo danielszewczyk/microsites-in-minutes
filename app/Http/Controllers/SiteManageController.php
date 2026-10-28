@@ -7,6 +7,9 @@ use App\Models\Site;
 use App\Models\Site as SiteModel;
 use App\Models\SiteAsset;
 use App\Models\SiteBreakdown;
+use App\Models\SiteHourlyStat;
+use App\Models\SiteMinuteStat;
+use App\Models\SiteStat;
 use App\Sites\HeroArt;
 use App\Sites\Plans;
 use App\Sites\SiteComposer;
@@ -31,6 +34,9 @@ class SiteManageController extends Controller
 {
     use ManagesSite;
 
+    /** The chart ranges the dashboard offers, each mapping to an analytics tier. */
+    public const array RANGES = ['hour', 'day', 'week', 'month', 'year'];
+
     public function manage(Request $request, string $slug): RedirectResponse|View
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
@@ -53,7 +59,9 @@ class SiteManageController extends Controller
             'inputs' => $site->inputs,
             'illustrations' => HeroArt::ILLUSTRATIONS,
             'entries' => $site->entries()->latest()->limit(100)->get(),
-            'stats' => $this->recentStats($site),
+            'stats' => $this->series($site, 'month'),
+            'statRange' => 'month',
+            'statCaption' => $this->rangeCaption('month'),
             'live' => LiveViewers::count($site->id),
             'plan' => $site->owner->plan(),
             'launchFree' => Plans::launchFree(),
@@ -255,6 +263,7 @@ class SiteManageController extends Controller
         $this->authorizeManage($request, $site);
 
         $avg = $site->avgDwellSeconds();
+        $range = $this->normalizeRange($request->query('range'));
 
         return response()->json([
             'views' => (int) $site->view_count,
@@ -262,35 +271,162 @@ class SiteManageController extends Controller
             'conversion' => $site->view_count > 0 ? round($site->entry_count / $site->view_count * 100, 1) : 0.0,
             'dwell' => $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—',
             'live' => LiveViewers::count($site->id),
-            'days' => $this->recentStats($site),
+            'range' => $range,
+            'caption' => $this->rangeCaption($range),
+            'series' => $this->series($site, $range),
         ]);
     }
 
     /**
-     * Views and entries per day for the last 30 days, oldest first.
+     * The chart series for a range, oldest first, with empty buckets filled in
+     * so the chart has a point for every minute / hour / day / month in the
+     * window. Each range reads the matching analytics tier: hour → minute rows,
+     * day → hourly rows, week/month → daily rows, year → daily rows by month.
      *
-     * @return array<int, array{date: string, views: int, entries: int}>
+     * @return array<int, array{label: string, views: int, entries: int}>
      */
-    protected function recentStats(Site $site): array
+    protected function series(Site $site, string $range): array
     {
-        $since = Carbon::today()->subDays(29);
+        return match ($range) {
+            'hour' => $this->minuteSeries($site, 60),
+            'day' => $this->hourSeries($site, 24),
+            'week' => $this->daySeries($site, 7),
+            'year' => $this->monthSeries($site, 12),
+            default => $this->daySeries($site, 30),
+        };
+    }
 
-        $rows = $site->stats()
-            ->where('stat_date', '>=', $since->toDateString())
+    /**
+     * Only a known range reaches the query layer; anything else is the default.
+     */
+    protected function normalizeRange(mixed $range): string
+    {
+        return in_array($range, self::RANGES, true) ? (string) $range : 'month';
+    }
+
+    /**
+     * The human caption under the chart for a range.
+     */
+    protected function rangeCaption(string $range): string
+    {
+        return match ($range) {
+            'hour' => 'Views per minute, last hour',
+            'day' => 'Views per hour, last 24 hours',
+            'week' => 'Views per day, last 7 days',
+            'year' => 'Views per month, last 12 months',
+            default => 'Views per day, last 30 days',
+        };
+    }
+
+    /**
+     * @return array<int, array{label: string, views: int, entries: int}>
+     */
+    protected function minuteSeries(Site $site, int $count): array
+    {
+        $end = Carbon::now()->startOfMinute();
+        $start = $end->copy()->subMinutes($count - 1);
+
+        $rows = SiteMinuteStat::query()
+            ->where('site_id', $site->id)
+            ->where('stat_minute', '>=', $start)
             ->get()
-            ->keyBy(fn ($stat): string => $stat->stat_date->toDateString());
+            ->keyBy(fn ($row): string => $row->stat_minute->format('Y-m-d H:i'));
 
-        $days = [];
+        $points = [];
 
-        for ($day = $since->copy(); $day->lte(Carbon::today()); $day->addDay()) {
-            $key = $day->toDateString();
-            $days[] = [
-                'date' => $key,
+        for ($t = $start->copy(); $t->lte($end); $t->addMinute()) {
+            $key = $t->format('Y-m-d H:i');
+            $points[] = [
+                'label' => $t->format('g:i a'),
                 'views' => (int) ($rows[$key]->views ?? 0),
                 'entries' => (int) ($rows[$key]->entries ?? 0),
             ];
         }
 
-        return $days;
+        return $points;
+    }
+
+    /**
+     * @return array<int, array{label: string, views: int, entries: int}>
+     */
+    protected function hourSeries(Site $site, int $count): array
+    {
+        $end = Carbon::now()->startOfHour();
+        $start = $end->copy()->subHours($count - 1);
+
+        $rows = SiteHourlyStat::query()
+            ->where('site_id', $site->id)
+            ->where('stat_hour', '>=', $start)
+            ->get()
+            ->keyBy(fn ($row): string => $row->stat_hour->format('Y-m-d H'));
+
+        $points = [];
+
+        for ($t = $start->copy(); $t->lte($end); $t->addHour()) {
+            $key = $t->format('Y-m-d H');
+            $points[] = [
+                'label' => $t->format('M j, g a'),
+                'views' => (int) ($rows[$key]->views ?? 0),
+                'entries' => (int) ($rows[$key]->entries ?? 0),
+            ];
+        }
+
+        return $points;
+    }
+
+    /**
+     * @return array<int, array{label: string, views: int, entries: int}>
+     */
+    protected function daySeries(Site $site, int $count): array
+    {
+        $end = Carbon::today();
+        $start = $end->copy()->subDays($count - 1);
+
+        $rows = SiteStat::query()
+            ->where('site_id', $site->id)
+            ->where('stat_date', '>=', $start->toDateString())
+            ->get()
+            ->keyBy(fn ($row): string => $row->stat_date->toDateString());
+
+        $points = [];
+
+        for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
+            $key = $day->toDateString();
+            $points[] = [
+                'label' => $day->format('M j'),
+                'views' => (int) ($rows[$key]->views ?? 0),
+                'entries' => (int) ($rows[$key]->entries ?? 0),
+            ];
+        }
+
+        return $points;
+    }
+
+    /**
+     * @return array<int, array{label: string, views: int, entries: int}>
+     */
+    protected function monthSeries(Site $site, int $count): array
+    {
+        $end = Carbon::now()->startOfMonth();
+        $start = $end->copy()->subMonths($count - 1);
+
+        $byMonth = SiteStat::query()
+            ->where('site_id', $site->id)
+            ->where('stat_date', '>=', $start->toDateString())
+            ->get()
+            ->groupBy(fn ($row): string => $row->stat_date->format('Y-m'));
+
+        $points = [];
+
+        for ($month = $start->copy(); $month->lte($end); $month->addMonth()) {
+            $rows = $byMonth[$month->format('Y-m')] ?? collect();
+            $points[] = [
+                'label' => $month->format('M Y'),
+                'views' => (int) $rows->sum('views'),
+                'entries' => (int) $rows->sum('entries'),
+            ];
+        }
+
+        return $points;
     }
 }
