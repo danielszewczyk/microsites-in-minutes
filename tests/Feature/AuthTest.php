@@ -91,4 +91,19 @@ class AuthTest extends TestCase
 
         $this->assertSame(0, Site::query()->count());
     }
+
+    public function test_the_mcp_generator_endpoint_rejects_an_unauthenticated_request(): void
+    {
+        // Generation has no anonymous path: the MCP endpoint is behind
+        // auth:api + verified, so with no bearer token at all it is rejected
+        // before any tool runs (the web POST /sites gate is covered in BuilderTest).
+        $this->postJson('/mcp', [
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/call',
+            'params' => ['name' => 'make_microsite', 'arguments' => []],
+        ])->assertUnauthorized();
+
+        $this->assertSame(0, Site::query()->count());
+    }
 }
