@@ -267,11 +267,14 @@
         (() => {
             // Add-ons drive the hidden "addon" field and reveal their fields. A
             // page is one kind at a time, so turning one on turns the other off.
+            const form = document.querySelector('form.card');
             const addonEvent = document.getElementById('addon_event');
             const addonSweeps = document.getElementById('addon_sweeps');
             const addonInput = document.getElementById('addon');
             const event = document.getElementById('event');
             const sweeps = document.getElementById('sweeps');
+            const picker = document.getElementById('accent_picker');
+            const hex = document.getElementById('accent_color');
 
             const sync = () => {
                 event.hidden = !addonEvent.checked;
@@ -279,18 +282,62 @@
                 addonInput.value = addonSweeps.checked ? 'sweepstakes' : (addonEvent.checked ? 'event' : '');
             };
 
+            // Preserve the whole form across the login / sign-up round-trip (#7):
+            // a guest fills it in, hits the publish wall, logs in, and lands back
+            // on a blank form. We stash the form locally as they type and restore
+            // it into a blank form on return, so nothing is lost at the auth wall.
+            const DRAFT_KEY = 'mim:builder-draft';
+            const DRAFT_MAX_AGE = 3 * 24 * 60 * 60 * 1000; // discard a draft older than 3 days
+            const draftFields = () => Array.from(form.querySelectorAll('input[name], textarea[name], select[name]'))
+                .filter((el) => el.name !== '_token');
+
+            const saveDraft = () => {
+                try {
+                    const data = {};
+                    draftFields().forEach((el) => { data[el.name] = el.type === 'checkbox' ? el.checked : el.value; });
+                    localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), data }));
+                } catch (e) { /* storage unavailable — carry on without it */ }
+            };
+
+            const restoreDraft = () => {
+                let stored = null;
+                try { stored = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { return; }
+                // Ignore (and clear) a draft that is missing, malformed or stale,
+                // so an abandoned draft can't resurface days later or on a shared
+                // computer.
+                if (!stored || !stored.data || !stored.savedAt || (Date.now() - stored.savedAt) > DRAFT_MAX_AGE) {
+                    try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* no-op */ }
+                    return;
+                }
+                const data = stored.data;
+                // Only restore into a blank form, so server-rendered old() values
+                // (after a validation error) or signed-in prefills are never lost.
+                if (addonInput.value || form.querySelector('[name="business_name"]').value.trim()
+                    || form.querySelector('[name="prompt"]').value.trim()) { return; }
+                draftFields().forEach((el) => {
+                    if (!(el.name in data)) { return; }
+                    if (el.type === 'checkbox') { el.checked = !!data[el.name]; } else { el.value = data[el.name]; }
+                });
+            };
+
             addonEvent.addEventListener('change', () => { if (addonEvent.checked) { addonSweeps.checked = false; } sync(); });
             addonSweeps.addEventListener('change', () => { if (addonSweeps.checked) { addonEvent.checked = false; } sync(); });
 
-            // Restore the toggles after a validation error (old input).
+            // Restore a local draft first, then reflect the add-on selection (from
+            // the draft, or from old() after a validation error) in the toggles.
+            restoreDraft();
             if (addonInput.value === 'event') { addonEvent.checked = true; }
             if (addonInput.value === 'sweepstakes') { addonSweeps.checked = true; }
             sync();
+            if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) { picker.value = hex.value; }
 
-            const picker = document.getElementById('accent_picker');
-            const hex = document.getElementById('accent_color');
             picker.addEventListener('input', () => { hex.value = picker.value; });
             hex.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) { picker.value = hex.value; } });
+
+            // Save on every edit — input covers text/select fields; change covers
+            // the add-on checkboxes, which drive the named hidden "addon" field.
+            form.addEventListener('input', saveDraft);
+            form.addEventListener('change', saveDraft);
         })();
     </script>
 </body>
