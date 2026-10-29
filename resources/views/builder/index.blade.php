@@ -231,8 +231,12 @@
                     <button type="submit" class="btn" disabled style="opacity:.6">Verify your email to publish</button>
                 @endif
             @else
-                <p class="muted" style="margin:0 0 10px">You'll need a free account to publish.</p>
-                <a href="{{ route('login') }}" class="btn" style="display:block;text-align:center;text-decoration:none">Log in or sign up to publish</a>
+                <div class="field">
+                    <label for="guest_email">Enter your email to get started</label>
+                    <input type="email" id="guest_email" name="email" value="{{ old('email') }}" maxlength="120" autocomplete="email" inputmode="email" placeholder="you@example.com">
+                    <p class="hint" style="margin:6px 0 0">Log in or create a free account to publish — no card required.</p>
+                </div>
+                <a href="{{ route('login') }}" id="auth_cta" class="btn" style="display:block;text-align:center;text-decoration:none">Log in or sign up to publish</a>
             @endauth
         </form>
 
@@ -338,6 +342,24 @@
             // the add-on checkboxes, which drive the named hidden "addon" field.
             form.addEventListener('input', saveDraft);
             form.addEventListener('change', saveDraft);
+
+            // Guest view only: carry the email they type into the login/sign-up
+            // link so it lands prefilled, and let Enter follow the CTA rather
+            // than submit the builder form (which a guest can't publish anyway).
+            const guestEmail = document.getElementById('guest_email');
+            const authCta = document.getElementById('auth_cta');
+            if (guestEmail && authCta) {
+                const base = authCta.getAttribute('href');
+                const syncCta = () => {
+                    const v = guestEmail.value.trim();
+                    authCta.href = v ? base + (base.includes('?') ? '&' : '?') + 'email=' + encodeURIComponent(v) : base;
+                };
+                guestEmail.addEventListener('input', syncCta);
+                guestEmail.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); syncCta(); authCta.click(); }
+                });
+                syncCta();
+            }
         })();
     </script>
 </body>

@@ -106,4 +106,40 @@ class AuthTest extends TestCase
 
         $this->assertSame(0, Site::query()->count());
     }
+
+    public function test_login_page_prefills_the_email_from_the_query_string(): void
+    {
+        // The builder's guest call-to-action carries the typed email across the
+        // auth wall as ?email=, so the login form lands prefilled.
+        $response = $this->get('/login?email=jane@example.com');
+
+        $response->assertOk();
+        $response->assertSee('value="jane@example.com"', false);
+    }
+
+    public function test_register_page_prefills_the_email_from_the_query_string(): void
+    {
+        $response = $this->get('/register?email=jane@example.com');
+
+        $response->assertOk();
+        $response->assertSee('value="jane@example.com"', false);
+    }
+
+    public function test_the_prefilled_email_is_escaped_in_the_login_form(): void
+    {
+        // The value is reflected from the query string, so it must be escaped to
+        // keep a crafted ?email= from injecting markup.
+        $response = $this->get('/login?email="><script>alert(1)</script>');
+
+        $response->assertOk();
+        $response->assertDontSee('<script>alert(1)</script>', false);
+    }
+
+    public function test_a_non_string_email_query_param_does_not_break_the_auth_pages(): void
+    {
+        // ?email[]=x makes request('email') an array; the pages must ignore it
+        // and still render, not 500 while escaping an array into the input.
+        $this->get('/login?email[]=x')->assertOk();
+        $this->get('/register?email[a]=x')->assertOk();
+    }
 }
