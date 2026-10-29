@@ -54,6 +54,7 @@ return [
             'custom_domain' => false,
             'remove_branding' => false,
             'analytics' => false,
+            'click_tracking' => false,
             'integrations' => false,
         ],
 
@@ -69,6 +70,7 @@ return [
             'custom_domain' => true,
             'remove_branding' => true,
             'analytics' => true,
+            'click_tracking' => true,
             'integrations' => false,
         ],
 
@@ -84,6 +86,7 @@ return [
             'custom_domain' => true,
             'remove_branding' => true,
             'analytics' => true,
+            'click_tracking' => true,
             'integrations' => true,
         ],
 

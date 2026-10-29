@@ -121,6 +121,22 @@ class Site extends Model
     }
 
     /**
+     * @return HasMany<SiteClickEvent, $this>
+     */
+    public function clickEvents(): HasMany
+    {
+        return $this->hasMany(SiteClickEvent::class);
+    }
+
+    /**
+     * @return HasMany<SiteClickStat, $this>
+     */
+    public function clickStats(): HasMany
+    {
+        return $this->hasMany(SiteClickStat::class);
+    }
+
+    /**
      * @return HasMany<Domain, $this>
      */
     public function domains(): HasMany
@@ -403,6 +419,30 @@ class Site extends Model
             'address' => $override['address'] ?? config('services.verification.from_address'),
             'name' => $override['name'] ?? ($this->inputs['business_name'] ?? config('services.verification.from_name')),
         ];
+    }
+
+    /**
+     * Whether this site's owner is entitled to the Pro click-tracking add-on.
+     * Gated on a plan feature flag (config/plans.php), never hard-coded to a
+     * tier, so how it is packaged can change without touching this check.
+     */
+    public function tracksClicks(): bool
+    {
+        return $this->owner->allows('click_tracking');
+    }
+
+    /**
+     * The slot → stable element-id map assigned to this site's trackable links
+     * and buttons at publish time. Empty for a site published before the add-on
+     * existed; such a site starts tracking once it is next saved.
+     *
+     * @return array<string, string>
+     */
+    public function trackIds(): array
+    {
+        $map = $this->content['track'] ?? [];
+
+        return is_array($map) ? $map : [];
     }
 
     /**
