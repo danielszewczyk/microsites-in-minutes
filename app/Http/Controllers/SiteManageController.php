@@ -10,6 +10,7 @@ use App\Models\SiteBreakdown;
 use App\Models\SiteHourlyStat;
 use App\Models\SiteMinuteStat;
 use App\Models\SiteStat;
+use App\Sites\Billing;
 use App\Sites\ClickTargets;
 use App\Sites\HeroArt;
 use App\Sites\Plans;
@@ -36,7 +37,7 @@ class SiteManageController extends Controller
     use ManagesSite;
 
     /** The chart ranges the dashboard offers, each mapping to an analytics tier. */
-    public const array RANGES = ['hour', 'day', 'week', 'month', 'year'];
+    public const array RANGES = ['hour', 'day', 'week', 'month', 'year', 'all'];
 
     public function manage(Request $request, string $slug): RedirectResponse|View
     {
@@ -94,11 +95,59 @@ class SiteManageController extends Controller
         $site = Site::query()->where('slug', $slug)->firstOrFail();
         $this->authorizeManage($request, $site);
 
+        if (config('plans.paywall') && ! $site->isPaid()) {
+            return back()->with('error', 'Keep it live for $1 a day to publish.');
+        }
+
         if ($site->isDraft()) {
             $site->update(['status' => Site::STATUS_PUBLISHED, 'published_at' => $site->published_at ?? now()]);
         }
 
         return back()->with('status', 'Your site is now live and accepting entries.');
+    }
+
+    /**
+     * Send the owner to Stripe's hosted Checkout for a day pass or the monthly plan.
+     */
+    public function checkout(Request $request, string $slug, string $plan, Billing $billing): RedirectResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        if (! config('services.stripe.enabled')) {
+            return back()->with('error', 'Payments are not switched on yet.');
+        }
+
+        $owner = $site->owner;
+
+        if ($owner === null) {
+            return back()->with('error', 'Sign in to your account to pay for this site.');
+        }
+
+        $returnUrl = route('microsite.manage', $site->slug);
+
+        $url = $plan === 'monthly'
+            ? $billing->monthlyCheckoutUrl($site, $owner, $returnUrl)
+            : $billing->dayPassCheckoutUrl($site, $owner, $returnUrl);
+
+        return redirect()->away($url);
+    }
+
+    /**
+     * One-tap extension for a day, charged to the card saved on the first payment.
+     */
+    public function extend(Request $request, string $slug, Billing $billing): RedirectResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        $owner = $site->owner;
+
+        if ($owner !== null && $billing->extendWithSavedCard($site, $owner)) {
+            return back()->with('status', 'Extended by one day.');
+        }
+
+        return back()->with('error', 'Your saved card needs confirming. Use Pay $1 for a day instead.');
     }
 
     public function regenerate(Request $request, string $slug, SiteComposer $composer): RedirectResponse
@@ -123,6 +172,7 @@ class SiteManageController extends Controller
             'contact_phone' => ['nullable', 'string', 'max:40'],
             'accent_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'hero_image' => ['nullable', 'string', Rule::in(['auto', 'none', ...HeroArt::ILLUSTRATIONS])],
+            'hero_overlay' => ['boolean'],
             'ga4_id' => ['nullable', 'string', 'regex:/^G-[A-Z0-9]{4,20}$/'],
             'remove_branding' => ['boolean'],
             'verify_emails' => ['boolean'],
@@ -143,7 +193,8 @@ class SiteManageController extends Controller
             'amoe' => ['nullable', 'string', 'max:800'],
         ]);
 
-        $composer->regenerate($site, $validated);
+        // An unticked checkbox sends no key, so read it explicitly or the old value would stick.
+        $composer->regenerate($site, [...$validated, 'hero_overlay' => $request->boolean('hero_overlay')]);
 
         return back()->with('status', 'Saved. Your live page updates within seconds.');
     }
@@ -335,6 +386,7 @@ class SiteManageController extends Controller
             'day' => $this->hourSeries($site, 24),
             'week' => $this->daySeries($site, 7),
             'year' => $this->monthSeries($site, 12),
+            'all' => $this->allSeries($site),
             default => $this->daySeries($site, 30),
         };
     }
@@ -357,6 +409,7 @@ class SiteManageController extends Controller
             'day' => 'Views per hour, last 24 hours',
             'week' => 'Views per day, last 7 days',
             'year' => 'Views per month, last 12 months',
+            'all' => 'Views per month, all time',
             default => 'Views per day, last 30 days',
         };
     }
@@ -471,5 +524,19 @@ class SiteManageController extends Controller
         }
 
         return $points;
+    }
+
+    /**
+     * All-time, bucketed by month from the site's first recorded day to now.
+     *
+     * @return array<int, array{label: string, views: int, entries: int}>
+     */
+    protected function allSeries(Site $site): array
+    {
+        $first = SiteStat::query()->where('site_id', $site->id)->min('stat_date');
+        $start = $first ? Carbon::parse($first)->startOfMonth() : Carbon::now()->startOfMonth();
+        $months = $start->diffInMonths(Carbon::now()->startOfMonth()) + 1;
+
+        return $this->monthSeries($site, max(1, (int) $months));
     }
 }

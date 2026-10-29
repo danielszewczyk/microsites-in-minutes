@@ -10,7 +10,9 @@ use App\Http\Controllers\ShortLinkController;
 use App\Http\Controllers\SiteAssetController;
 use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\SiteManageController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\VerificationController;
+use App\Http\Controllers\WebmasterController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,6 +41,14 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/email/verification-notification', [VerificationController::class, 'resend'])
         ->middleware('throttle:6,1')->name('verification.send');
 });
+
+/*
+ * The webmaster dashboard: a directory of every site on the service, open only
+ * to accounts on the config/webmaster.php allowlist.
+ */
+Route::get('/admin', [WebmasterController::class, 'index'])
+    ->middleware(['auth', 'webmaster'])
+    ->name('admin.sites');
 
 /*
  * Site-wide SEO endpoints.
@@ -73,6 +83,12 @@ Route::post('/dev-credentials/{id}', [ApiTokenShareController::class, 'reveal'])
     ->where('id', '[A-Za-z0-9]{1,64}')
     ->middleware('throttle:30,1,api-token-reveal-confirm')
     ->name('api-token.reveal.confirm');
+
+/*
+ * Stripe calls this with signed events. It is outside the CSRF check and is
+ * trusted only when the signature verifies against the webhook secret.
+ */
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name('stripe.webhook');
 
 /*
  * A published microsite and everything that hangs off it. The slug is the only
@@ -134,6 +150,13 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
     Route::post('/manage/regenerate', [SiteManageController::class, 'regenerate'])
         ->middleware('throttle:30,1,microsite-regenerate')
         ->name('microsite.regenerate');
+    Route::post('/manage/billing/{plan}', [SiteManageController::class, 'checkout'])
+        ->whereIn('plan', ['day', 'monthly'])
+        ->middleware('throttle:20,1,microsite-billing')
+        ->name('microsite.billing.checkout');
+    Route::post('/manage/billing/extend', [SiteManageController::class, 'extend'])
+        ->middleware('throttle:20,1,microsite-billing')
+        ->name('microsite.billing.extend');
     Route::get('/manage/entries.csv', [SiteManageController::class, 'exportEntries'])->name('microsite.entries.export');
     Route::get('/manage/stats.json', [SiteManageController::class, 'stats'])
         ->middleware('throttle:120,1,manage-stats')->name('microsite.stats');

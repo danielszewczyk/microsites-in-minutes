@@ -162,6 +162,7 @@ class SiteComposer
             'contact_phone' => $this->str($input['contact_phone'] ?? '', 40),
             'accent_color' => $this->hex($input['accent_color'] ?? null),
             'hero_image' => $this->str($input['hero_image'] ?? 'auto', 40),
+            'hero_overlay' => (bool) ($input['hero_overlay'] ?? false),
             'ga4_id' => $this->str($input['ga4_id'] ?? '', 40),
             'remove_branding' => (bool) ($input['remove_branding'] ?? false),
             'custom_domain' => $this->str($input['custom_domain'] ?? '', 120),
@@ -218,6 +219,7 @@ class SiteComposer
         return [
             'accent_color' => $inputs['accent_color'] ?? Site::DEFAULT_ACCENT,
             'hero_image' => $hero,
+            'hero_overlay' => (bool) ($inputs['hero_overlay'] ?? false),
             'ga4_id' => $owner->allows('analytics') ? ($inputs['ga4_id'] ?: null) : null,
             'remove_branding' => $inputs['remove_branding'] && $owner->allows('remove_branding'),
             'custom_domain' => $owner->allows('custom_domain') ? ($inputs['custom_domain'] ?: null) : null,

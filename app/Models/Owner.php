@@ -93,4 +93,24 @@ class Owner extends Authenticatable implements MustVerifyEmail, OAuthenticatable
     {
         return (bool) ($this->plan()[$feature] ?? false);
     }
+
+    /**
+     * Whether this account may reach the /admin dashboard and see every site on
+     * the service. Membership is an email allowlist in config/webmaster.php, so
+     * granting access is an environment change, never a self-serve flag.
+     */
+    public function isWebmaster(): bool
+    {
+        // A verified address is required: registration signs an owner in before
+        // verification, so without this check someone could register an
+        // allowlisted address they don't control and reach the admin area.
+        if (! $this->hasVerifiedEmail()) {
+            return false;
+        }
+
+        /** @var list<string> $emails */
+        $emails = config('webmaster.emails', []);
+
+        return in_array(strtolower(trim($this->email)), $emails, true);
+    }
 }

@@ -31,6 +31,12 @@
         .banner img { display: block; width: 100%; height: auto; max-height: 440px; object-fit: cover; }
         header { padding: 88px 0 64px; border-bottom: 6px solid var(--accent); }
         .banner + header { padding-top: 48px; }
+        /* Hero text over the banner: both sit in one grid cell, the text at the bottom on a dark scrim. */
+        .hero-stack.overlay { display: grid; }
+        .hero-stack.overlay > * { grid-area: 1 / 1; }
+        .hero-stack.overlay header { align-self: end; color: #fff; border-bottom: 0; padding: 48px 0 40px; background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0)); }
+        .hero-stack.overlay .kicker, .hero-stack.overlay .cta-note { color: #fff; }
+        .hero-stack.overlay .subhead { color: rgba(255,255,255,.92); }
         .kicker { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.8rem; font-weight: 700; color: var(--accent); margin: 0 0 14px; }
         h1 { font-size: clamp(2.1rem, 6vw, 3.6rem); line-height: 1.08; margin: 0 0 16px; letter-spacing: -0.02em; }
         .subhead { font-size: clamp(1.1rem, 2.6vw, 1.4rem); color: var(--muted); margin: 0 0 28px; max-width: 42ch; }
@@ -94,11 +100,15 @@
 </head>
 <body>
     @if ($isDraft)
-        <div style="background:#92400e;color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:0.9rem">
-            Draft preview — not live and not accepting entries. Visible only to people with this link.
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:#0b2d4f;color:#fff;padding:12px 16px;font-size:0.95rem">
+            <strong style="font-size:1.05rem">Draft preview</strong>
+            <span>Not live and not accepting entries. Visible only to people with this link.</span>
         </div>
     @endif
-    @if ($banners['desktop'] || $banners['mobile'])
+    @php($hasBanner = $banners['desktop'] || $banners['mobile'])
+    @php($overlay = $hasBanner && $site->heroOverlay())
+    <div class="hero-stack{{ $overlay ? ' overlay' : '' }}">
+    @if ($hasBanner)
         <div class="banner">
             <picture>
                 @if ($banners['mobile'])
@@ -109,7 +119,7 @@
         </div>
     @endif
 
-    @php($showArt = $hero && ! $banners['desktop'] && ! $banners['mobile'])
+    @php($showArt = $hero && ! $hasBanner)
     <header>
         <div class="wrap hero{{ $showArt ? ' has-art' : '' }}">
             <div>
@@ -128,6 +138,7 @@
             @endif
         </div>
     </header>
+    </div>
 
     <main>
         <section>

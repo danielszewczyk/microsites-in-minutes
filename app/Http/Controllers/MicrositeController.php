@@ -53,6 +53,11 @@ class MicrositeController extends Controller
      */
     public function showForSite(Request $request, Site $site): Response
     {
+        // Not cached: a site lapses with the clock, not with a write, so the version key cannot see it.
+        if ($site->isLapsed()) {
+            return response()->view('microsite.paused', ['site' => $site]);
+        }
+
         $version = $site->version();
         $host = md5($request->getHost());
         $phase = $site->phase();

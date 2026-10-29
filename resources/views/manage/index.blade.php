@@ -25,10 +25,11 @@
         .bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; }
         /* Each bucket holds two bars: views (accent) and entries (amber), each
            scaled to its own peak so the smaller entries trend stays visible. */
-        .bars .bar { flex: 1; display: flex; align-items: flex-end; gap: 1px; height: 100%; min-width: 0; }
-        .bars .bar i { flex: 1; min-height: 2px; border-radius: 2px 2px 0 0; opacity: 0.85; }
-        .bars .bar .v { background: var(--accent); }
-        .bars .bar .e { background: var(--entries); }
+        /* One bar per bucket, height = views; the amber segment is entries as a
+           share of that bar, so its fill visualises the conversion rate. */
+        .bars .bar { flex: 1; position: relative; min-width: 0; min-height: 2px; }
+        .bars .bar .v { position: absolute; inset: 0; background: var(--accent); border-radius: 2px 2px 0 0; opacity: 0.9; }
+        .bars .bar .e { position: absolute; left: 0; right: 0; bottom: 0; background: var(--entries); border-radius: 0 0 2px 2px; }
         .chart-legend { display: flex; gap: 16px; margin: 10px 0 0; font-size: 0.8rem; color: var(--muted); }
         .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
         .chart-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
@@ -44,20 +45,16 @@
         .chart-foot .cap { font-size: 0.82rem; }
         .chart-foot .ranges { margin: 0 0 0 auto; }
         /* Chart plot: left y-axis (views), bars, right y-axis (entries), x-axis. */
-        .chart-plot { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: end; margin-top: 14px; }
+        .chart-plot { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: end; margin-top: 14px; }
         .chart-plot .chart-wrap { grid-row: 1; grid-column: 2; }
-        .chart-plot .y-axis { grid-row: 1; }
-        .chart-plot .y-axis.r { grid-column: 3; }
+        .chart-plot .y-axis { grid-row: 1; grid-column: 1; }
         .chart-plot .x-axis { grid-row: 2; grid-column: 2; }
-        .y-axis { display: flex; flex-direction: column; justify-content: space-between; height: 60px; font-size: 0.68rem; font-variant-numeric: tabular-nums; line-height: 1; }
-        .y-axis.l { text-align: right; color: var(--accent); }
-        .y-axis.r { text-align: left; color: var(--entries); }
+        .y-axis { display: flex; flex-direction: column; justify-content: space-between; height: 60px; font-size: 0.68rem; font-variant-numeric: tabular-nums; line-height: 1; text-align: right; color: var(--accent); }
         .x-axis { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--muted); margin-top: 5px; }
-        /* Legend click toggles a series on/off. */
+        /* Legend click toggles a series layer on/off. */
         .chart-plot.hide-v .bar .v { display: none; }
         .chart-plot.hide-e .bar .e { display: none; }
-        .chart-plot.hide-v .y-axis.l { opacity: 0.3; }
-        .chart-plot.hide-e .y-axis.r { opacity: 0.3; }
+        .chart-plot.hide-v .y-axis { opacity: 0.3; }
         .chart-legend span { cursor: pointer; user-select: none; }
         .chart-legend span.off { opacity: 0.4; text-decoration: line-through; }
         .ranges { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 2px; }
@@ -132,6 +129,28 @@
             <div class="card ok"><p style="margin:0">{{ session('status') }}</p></div>
         @endif
 
+        @if (session('error'))
+            <div class="card" style="border-color:#b91c1c"><p style="margin:0">{{ session('error') }}</p></div>
+        @endif
+
+        @if (config('plans.paywall'))
+            <div class="card">
+                <h2 style="margin-top:0;font-size:1.2rem">Keep it live</h2>
+                @if ($site->isPaid())
+                    <p class="muted" style="margin-top:0">Paid through {{ $site->paid_through->format('M j, Y g:ia') }}.</p>
+                @elseif ($site->isLapsed())
+                    <p class="muted" style="margin-top:0">Paused. Your time ran out on {{ $site->paid_through->format('M j, Y') }}. Pay to reopen entries.</p>
+                @else
+                    <p class="muted" style="margin-top:0">Pay $1 for a day to publish. Apple Pay works on iPhone and Mac.</p>
+                @endif
+                <form method="post" action="{{ route('microsite.billing.checkout', [$site->slug, 'day']) }}" style="display:inline">@csrf<button class="btn" type="submit">Pay $1 for a day</button></form>
+                @if ($site->owner?->stripe_payment_method_id)
+                    <form method="post" action="{{ route('microsite.billing.extend', $site->slug) }}" style="display:inline">@csrf<button class="btn" type="submit">Extend 1 day ($1, saved card)</button></form>
+                @endif
+                <form method="post" action="{{ route('microsite.billing.checkout', [$site->slug, 'monthly']) }}" style="display:inline">@csrf<button class="btn" type="submit">Subscribe $25/month</button></form>
+            </div>
+        @endif
+
         @if ($site->isDraft())
             <div class="card" style="border-color:#b45309">
                 <h2 style="margin-top:0;font-size:1.2rem">This site is a draft</h2>
@@ -150,25 +169,25 @@
                 <div class="stat"><b id="stat-dwell">{{ $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—' }}</b><span>avg. time on page</span></div>
             </div>
             @php($viewMax = (int) collect($stats)->max('views'))
-            @php($entryMax = (int) collect($stats)->max('entries'))
             @php($peak = max(1, $viewMax))
-            @php($entryPeak = max(1, $entryMax))
             @php($n = count($stats))
             @php($xTicks = $n ? collect([0, 0.25, 0.5, 0.75, 1])->map(fn ($f) => (int) round($f * ($n - 1)))->unique()->map(fn ($i) => $stats[$i]['label'])->values() : collect())
             <div class="chart-plot" id="stat-plot">
-                <div class="y-axis l"><span id="y-views-peak">{{ number_format($viewMax) }}</span><span>0</span></div>
+                <div class="y-axis"><span id="y-views-peak">{{ number_format($viewMax) }}</span><span>0</span></div>
                 <div class="chart-wrap">
                     <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" data-range="{{ $statRange }}">
                         @foreach ($stats as $point)
-                            <span class="bar" aria-label="{{ $point['label'] }}: {{ $point['views'] }} views, {{ $point['entries'] }} entries" data-label="{{ $point['label'] }}" data-views="{{ $point['views'] }}" data-entries="{{ $point['entries'] }}">
-                                <i class="v" style="height: {{ max(2, (int) round($point['views'] / $peak * 60)) }}px"></i>
-                                <i class="e" style="height: {{ max(2, (int) round($point['entries'] / $entryPeak * 60)) }}px"></i>
+                            @php($bh = max(2, (int) round($point['views'] / $peak * 60)))
+                            @php($es = $point['views'] > 0 ? min($bh, max($point['entries'] > 0 ? 2 : 0, (int) round($bh * $point['entries'] / $point['views']))) : 0)
+                            @php($conv = $point['views'] > 0 ? round($point['entries'] / $point['views'] * 100, 1) : 0)
+                            <span class="bar" style="height: {{ $bh }}px" aria-label="{{ $point['label'] }}: {{ $point['views'] }} views, {{ $point['entries'] }} entries ({{ $conv }}%)" data-label="{{ $point['label'] }}" data-views="{{ $point['views'] }}" data-entries="{{ $point['entries'] }}" data-conv="{{ $conv }}">
+                                <i class="v"></i>
+                                <i class="e" style="height: {{ $es }}px"></i>
                             </span>
                         @endforeach
                     </div>
                     <div class="chart-tip" id="stat-tip"></div>
                 </div>
-                <div class="y-axis r"><span id="y-entries-peak">{{ number_format($entryMax) }}</span><span>0</span></div>
                 <div class="x-axis" id="stat-xaxis">@foreach ($xTicks as $t)<span>{{ $t }}</span>@endforeach</div>
             </div>
             <div class="chart-legend" id="stat-legend">
@@ -178,7 +197,7 @@
             <div class="chart-foot">
                 <span class="muted cap"><span id="stat-caption">{{ $statCaption }}</span> (built-in analytics) · updates live</span>
                 <div class="ranges" id="stat-ranges">
-                    @foreach (['hour' => 'Hour', 'day' => 'Day', 'week' => 'Week', 'month' => 'Month', 'year' => 'Year'] as $key => $label)
+                    @foreach (['hour' => 'Hour', 'day' => 'Day', 'week' => 'Week', 'month' => 'Month', 'year' => 'Year', 'all' => 'All'] as $key => $label)
                         <button type="button" class="range{{ $key === $statRange ? ' is-active' : '' }}" data-range="{{ $key }}" aria-pressed="{{ $key === $statRange ? 'true' : 'false' }}">{{ $label }}</button>
                     @endforeach
                 </div>
@@ -665,6 +684,10 @@
                         </select>
                     </div>
                 </div>
+                <label class="muted" style="font-weight:400;display:block;margin-bottom:8px">
+                    <input type="checkbox" name="hero_overlay" value="1" style="width:auto" {{ ($inputs['hero_overlay'] ?? false) ? 'checked' : '' }}>
+                    Put the headline and button over the banner image
+                </label>
 
                 @if (($inputs['type'] ?? '') === 'event')
                     <fieldset>
@@ -812,21 +835,21 @@
 
             const renderBars = (series) => {
                 const viewMax = Math.max(0, ...series.map((x) => x.views));
-                const entryMax = Math.max(0, ...series.map((x) => x.entries));
                 const peak = Math.max(1, viewMax);
-                const entryPeak = Math.max(1, entryMax);
                 bars.innerHTML = series.map((x) => {
-                    const v = Math.max(2, Math.round(x.views / peak * 60));
-                    const e = Math.max(2, Math.round(x.entries / entryPeak * 60));
-                    return `<span class="bar" aria-label="${x.label}: ${x.views} views, ${x.entries} entries" data-label="${x.label}" data-views="${x.views}" data-entries="${x.entries}"><i class="v" style="height:${v}px"></i><i class="e" style="height:${e}px"></i></span>`;
+                    const bh = Math.max(2, Math.round(x.views / peak * 60));
+                    const conv = x.views > 0 ? x.entries / x.views : 0;
+                    const es = x.views > 0 ? Math.min(bh, Math.max(x.entries > 0 ? 2 : 0, Math.round(bh * conv))) : 0;
+                    const pct = (conv * 100).toFixed(1);
+                    return `<span class="bar" style="height:${bh}px" aria-label="${x.label}: ${x.views} views, ${x.entries} entries (${pct}%)" data-label="${x.label}" data-views="${x.views}" data-entries="${x.entries}" data-conv="${pct}"><i class="v"></i><i class="e" style="height:${es}px"></i></span>`;
                 }).join('');
                 const yv = document.getElementById('y-views-peak'); if (yv) { yv.textContent = viewMax.toLocaleString(); }
-                const ye = document.getElementById('y-entries-peak'); if (ye) { ye.textContent = entryMax.toLocaleString(); }
                 const xax = document.getElementById('stat-xaxis');
                 if (xax && series.length) {
+                    // Hour view reads cleaner at ~30-min spacing (3 ticks); others at 5.
+                    const ticks = range === 'hour' ? 3 : 5;
                     const seen = new Set();
-                    xax.innerHTML = [0, 0.25, 0.5, 0.75, 1]
-                        .map((f) => Math.round(f * (series.length - 1)))
+                    xax.innerHTML = Array.from({ length: ticks }, (_, k) => Math.round(k / (ticks - 1) * (series.length - 1)))
                         .filter((i) => (seen.has(i) ? false : seen.add(i)))
                         .map((i) => `<span>${series[i].label}</span>`).join('');
                 }
@@ -859,7 +882,8 @@
                     if (!bar || !bars.contains(bar)) { return; }
                     tip.innerHTML = `<div class="tl">${bar.dataset.label}</div>`
                         + `<div><span class="sw" style="background:var(--accent)"></span>${bar.dataset.views} views</div>`
-                        + `<div><span class="sw" style="background:var(--entries)"></span>${bar.dataset.entries} entries</div>`;
+                        + `<div><span class="sw" style="background:var(--entries)"></span>${bar.dataset.entries} entries</div>`
+                        + `<div style="opacity:.7;margin-top:2px">${bar.dataset.conv}% conversion</div>`;
                     tip.style.left = (bar.offsetLeft + bar.offsetWidth / 2) + 'px';
                     tip.style.top = bar.offsetTop + 'px';
                     tip.classList.add('show');

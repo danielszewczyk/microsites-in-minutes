@@ -193,6 +193,27 @@ class ManageTest extends TestCase
         $this->assertNotSame($before, $site->version());
     }
 
+    public function test_hero_overlay_saves_and_clears_from_the_manage_form(): void
+    {
+        $site = Site::factory()->withToken('secret-token')->create();
+        $form = [
+            'business_name' => $site->inputs['business_name'],
+            'prompt' => 'A completely rewritten description for the salon with a weekend special offer now.',
+            'type' => 'standard',
+        ];
+
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->post(route('microsite.regenerate', $site->slug), [...$form, 'hero_overlay' => '1'])
+            ->assertRedirect();
+        $this->assertTrue($site->refresh()->heroOverlay());
+
+        // An unticked checkbox sends no key at all, so the saved value must still clear.
+        $this->withCookie($site->cookieName(), 'secret-token')
+            ->post(route('microsite.regenerate', $site->slug), $form)
+            ->assertRedirect();
+        $this->assertFalse($site->refresh()->heroOverlay());
+    }
+
     public function test_regenerate_is_rejected_without_the_token(): void
     {
         $site = Site::factory()->withToken('secret-token')->create();

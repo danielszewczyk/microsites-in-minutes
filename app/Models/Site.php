@@ -72,7 +72,25 @@ class Site extends Model
             'content' => 'array',
             'settings' => 'array',
             'published_at' => 'datetime',
+            'paid_through' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether the site has paid time left. Only a site that has ever been paid
+     * for is tracked; a site with no paid_through is outside the paywall.
+     */
+    public function isPaid(): bool
+    {
+        return $this->paid_through !== null && $this->paid_through->isFuture();
+    }
+
+    /**
+     * A paid site whose time has run out: it is paused until the owner pays again.
+     */
+    public function isLapsed(): bool
+    {
+        return (bool) config('plans.paywall') && $this->paid_through !== null && $this->paid_through->isPast();
     }
 
     /**
@@ -300,7 +318,7 @@ class Site extends Model
      */
     public function acceptsEntries(): bool
     {
-        if ($this->isDraft() || $this->phase() !== self::PHASE_LIVE) {
+        if ($this->isDraft() || $this->isLapsed() || $this->phase() !== self::PHASE_LIVE) {
             return false;
         }
 
@@ -370,6 +388,14 @@ class Site extends Model
         $hero = $this->settings['hero_image'] ?? null;
 
         return in_array($hero, HeroArt::ILLUSTRATIONS, true) ? $hero : null;
+    }
+
+    /**
+     * Whether the hero text sits over the banner image rather than below it.
+     */
+    public function heroOverlay(): bool
+    {
+        return ($this->settings['hero_overlay'] ?? false) === true;
     }
 
     public function ga4Id(): ?string

@@ -29,6 +29,20 @@ return [
      */
     'launch_free' => (bool) env('LAUNCH_FREE', false),
 
+    /*
+     * Pay-to-publish. While false, publishing is unchanged and no site is ever
+     * asked to pay. Turn on only once Stripe test mode is verified.
+     */
+    'paywall' => (bool) env('PAYWALL', false),
+
+    /*
+     * Per-site paid time. A day pass buys one day; the monthly plan buys one
+     * month and renews through Stripe Subscriptions. A card saved on the first
+     * day pass lets the owner extend with one tap.
+     */
+    'day_pass' => ['price' => 1_00, 'days' => 1],
+    'monthly_basic' => ['price' => 25_00],
+
     'billing_modes' => ['subscription', 'per_campaign', 'metered_build', 'metered_entries'],
 
     /*

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureWebmaster;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         /*
+         * Route alias for the webmaster-only admin area (used with `auth`).
+         */
+        $middleware->alias([
+            'webmaster' => EnsureWebmaster::class,
+        ]);
+
+        /*
          * The public entry form posts with fetch and is CSRF-exempt: a public
          * microsite is fully cacheable and carries no session to protect. It is
          * guarded by a honeypot field, a per-IP rate limit and strict
@@ -24,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             's/*/send-code',
             's/*/ping',
             's/*/track',
+            'stripe/webhook',
         ]);
 
         /*
