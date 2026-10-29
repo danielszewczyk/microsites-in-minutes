@@ -319,6 +319,30 @@
             @endif
         </div>
 
+        @if ($tracksClicks)
+            <div class="card">
+                <h2 style="margin-top:0;font-size:1.2rem">Most-clicked links &amp; buttons</h2>
+                <p class="muted" style="margin-top:0">Which links and buttons visitors tap most — last 30 days, counted on our side with no cookies or visitor tracking.</p>
+                @if (empty($clicks))
+                    <p class="muted" style="margin:0">No clicks yet. Once visitors start tapping your call-to-action and other links, you'll see them ranked here.</p>
+                @else
+                    <table>
+                        <thead><tr><th>Link / button</th><th>Type</th><th>Clicks</th></tr></thead>
+                        <tbody>
+                            @foreach ($clicks as $row)
+                                <tr>
+                                    <td>{{ $row['name'] }}</td>
+                                    <td>{{ ucfirst($row['kind']) }}</td>
+                                    <td>{{ number_format($row['clicks']) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    <p class="muted" style="font-size:0.8rem;margin:12px 0 0">Each element is tracked by a stable id set when the page is built, so counts follow it even if you change its wording.</p>
+                @endif
+            </div>
+        @endif
+
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
                 <h2 style="margin:0;font-size:1.2rem">Plan &amp; usage</h2>

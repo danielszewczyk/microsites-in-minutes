@@ -10,6 +10,7 @@ use App\Models\SiteBreakdown;
 use App\Models\SiteHourlyStat;
 use App\Models\SiteMinuteStat;
 use App\Models\SiteStat;
+use App\Sites\ClickTargets;
 use App\Sites\HeroArt;
 use App\Sites\Plans;
 use App\Sites\SiteComposer;
@@ -67,6 +68,8 @@ class SiteManageController extends Controller
             'launchFree' => Plans::launchFree(),
             'usage' => UsageReport::for($site->owner),
             'breakdowns' => $this->breakdowns($site),
+            'tracksClicks' => $site->tracksClicks(),
+            'clicks' => $this->clickReport($site),
             'domain' => $site->domain(),
             'og' => [
                 'image' => route('microsite.og', $site->slug).'?v='.substr($site->version(), -8),
@@ -239,6 +242,46 @@ class SiteManageController extends Controller
             'campaign' => $top(SiteBreakdown::CAMPAIGN),
             'device' => $top(SiteBreakdown::DEVICE),
         ];
+    }
+
+    /**
+     * The most-clicked tracked links and buttons for a site over the last 30
+     * days (the Pro click-tracking add-on): a row per element with a human name
+     * and its total, most-clicked first. Empty when the add-on is off or no
+     * clicks have landed. Anonymous — from our own daily roll-up, no cookies.
+     *
+     * @return list<array{name: string, kind: string, clicks: int}>
+     */
+    protected function clickReport(Site $site): array
+    {
+        if (! $site->tracksClicks()) {
+            return [];
+        }
+
+        $since = Carbon::today()->subDays(29)->toDateString();
+
+        $totals = $site->clickStats()
+            ->where('stat_date', '>=', $since)
+            ->get()
+            ->groupBy('element_id')
+            ->map(fn ($rows): int => (int) $rows->sum('clicks'));
+
+        $rows = [];
+
+        foreach ($site->trackIds() as $slot => $id) {
+            $clicks = (int) ($totals[$id] ?? 0);
+
+            if ($clicks <= 0) {
+                continue;
+            }
+
+            $meta = ClickTargets::SLOTS[$slot] ?? ['kind' => 'link', 'name' => $slot];
+            $rows[] = ['name' => $meta['name'], 'kind' => $meta['kind'], 'clicks' => $clicks];
+        }
+
+        usort($rows, fn (array $a, array $b): int => $b['clicks'] <=> $a['clicks']);
+
+        return $rows;
     }
 
     /**
