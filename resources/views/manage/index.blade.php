@@ -6,8 +6,8 @@
     <meta name="robots" content="noindex, nofollow">
     <title>Manage — {{ $inputs['business_name'] ?? 'your site' }}</title>
     <style>
-        :root { --accent: {{ $site->accent() }}; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --card: #fff; --line: #e7e5e4; }
-        @media (prefers-color-scheme: dark) { :root { --ink: #fafaf9; --muted: #a8a29e; --paper: #1c1917; --card: #292524; --line: #44403c; } }
+        :root { --accent: {{ $site->accent() }}; --entries: #f59e0b; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --card: #fff; --line: #e7e5e4; }
+        @media (prefers-color-scheme: dark) { :root { --entries: #fbbf24; --ink: #fafaf9; --muted: #a8a29e; --paper: #1c1917; --card: #292524; --line: #44403c; } }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); line-height: 1.6; }
         .wrap { max-width: 900px; margin: 0 auto; padding: 0 20px 80px; }
@@ -23,7 +23,26 @@
         .live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #16a34a; margin-right: 8px; vertical-align: baseline; animation: livepulse 1.6s ease-in-out infinite; }
         @keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 14px; }
-        .bars i { flex: 1; background: var(--accent); min-height: 2px; border-radius: 2px 2px 0 0; opacity: 0.85; }
+        /* Each bucket holds two bars: views (accent) and entries (amber), each
+           scaled to its own peak so the smaller entries trend stays visible. */
+        .bars .bar { flex: 1; display: flex; align-items: flex-end; gap: 1px; height: 100%; min-width: 0; }
+        .bars .bar i { flex: 1; min-height: 2px; border-radius: 2px 2px 0 0; opacity: 0.85; }
+        .bars .bar .v { background: var(--accent); }
+        .bars .bar .e { background: var(--entries); }
+        .chart-legend { display: flex; gap: 16px; margin: 10px 0 0; font-size: 0.8rem; color: var(--muted); }
+        .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+        .chart-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+        /* Positioned wrapper so the hover tooltip (a sibling of .bars that
+           survives the live re-render) anchors to each bucket. */
+        .chart-wrap { position: relative; }
+        .chart-tip { position: absolute; z-index: 5; pointer-events: none; transform: translate(-50%, -100%); background: var(--ink); color: var(--paper); font-size: 0.72rem; line-height: 1.4; padding: 6px 9px; border-radius: 7px; white-space: nowrap; opacity: 0; transition: opacity 0.1s ease; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
+        .chart-tip.show { opacity: 1; }
+        .chart-tip .tl { font-weight: 600; margin-bottom: 3px; }
+        .chart-tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+        /* Caption left, range controls bottom-right. */
+        .chart-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; }
+        .chart-foot .cap { font-size: 0.82rem; }
+        .chart-foot .ranges { margin: 0 0 0 auto; }
         .ranges { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 2px; }
         .ranges .range { font-size: 0.8rem; padding: 4px 11px; border: 1px solid rgba(0, 0, 0, 0.12); background: transparent; color: var(--muted); border-radius: 999px; cursor: pointer; }
         .ranges .range.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -113,18 +132,31 @@
                 @php($avg = $site->avgDwellSeconds())
                 <div class="stat"><b id="stat-dwell">{{ $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—' }}</b><span>avg. time on page</span></div>
             </div>
-            <div class="ranges" id="stat-ranges">
-                @foreach (['hour' => 'Hour', 'day' => 'Day', 'week' => 'Week', 'month' => 'Month', 'year' => 'Year'] as $key => $label)
-                    <button type="button" class="range{{ $key === $statRange ? ' is-active' : '' }}" data-range="{{ $key }}" aria-pressed="{{ $key === $statRange ? 'true' : 'false' }}">{{ $label }}</button>
-                @endforeach
-            </div>
             @php($peak = max(1, collect($stats)->max('views')))
-            <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" data-range="{{ $statRange }}">
-                @foreach ($stats as $point)
-                    <i style="height: {{ max(2, (int) round($point['views'] / $peak * 60)) }}px" title="{{ $point['label'] }}: {{ $point['views'] }} views, {{ $point['entries'] }} entries"></i>
-                @endforeach
+            @php($entryPeak = max(1, collect($stats)->max('entries')))
+            <div class="chart-wrap">
+                <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" data-range="{{ $statRange }}">
+                    @foreach ($stats as $point)
+                        <span class="bar" aria-label="{{ $point['label'] }}: {{ $point['views'] }} views, {{ $point['entries'] }} entries" data-label="{{ $point['label'] }}" data-views="{{ $point['views'] }}" data-entries="{{ $point['entries'] }}">
+                            <i class="v" style="height: {{ max(2, (int) round($point['views'] / $peak * 60)) }}px"></i>
+                            <i class="e" style="height: {{ max(2, (int) round($point['entries'] / $entryPeak * 60)) }}px"></i>
+                        </span>
+                    @endforeach
+                </div>
+                <div class="chart-tip" id="stat-tip"></div>
             </div>
-            <p class="muted" style="font-size:0.82rem;margin:8px 0 0"><span id="stat-caption">{{ $statCaption }}</span> (built-in analytics) · <span class="muted">updates live</span></p>
+            <div class="chart-legend">
+                <span><i style="background: var(--accent)"></i>Views</span>
+                <span><i style="background: var(--entries)"></i>Entries</span>
+            </div>
+            <div class="chart-foot">
+                <span class="muted cap"><span id="stat-caption">{{ $statCaption }}</span> (built-in analytics) · updates live</span>
+                <div class="ranges" id="stat-ranges">
+                    @foreach (['hour' => 'Hour', 'day' => 'Day', 'week' => 'Week', 'month' => 'Month', 'year' => 'Year'] as $key => $label)
+                        <button type="button" class="range{{ $key === $statRange ? ' is-active' : '' }}" data-range="{{ $key }}" aria-pressed="{{ $key === $statRange ? 'true' : 'false' }}">{{ $label }}</button>
+                    @endforeach
+                </div>
+            </div>
         </div>
 
         <div class="card">
@@ -754,11 +786,32 @@
 
             const renderBars = (series) => {
                 const peak = Math.max(1, ...series.map((x) => x.views));
+                const entryPeak = Math.max(1, ...series.map((x) => x.entries));
                 bars.innerHTML = series.map((x) => {
-                    const h = Math.max(2, Math.round(x.views / peak * 60));
-                    return `<i style="height:${h}px" title="${x.label}: ${x.views} views, ${x.entries} entries"></i>`;
+                    const v = Math.max(2, Math.round(x.views / peak * 60));
+                    const e = Math.max(2, Math.round(x.entries / entryPeak * 60));
+                    return `<span class="bar" aria-label="${x.label}: ${x.views} views, ${x.entries} entries" data-label="${x.label}" data-views="${x.views}" data-entries="${x.entries}"><i class="v" style="height:${v}px"></i><i class="e" style="height:${e}px"></i></span>`;
                 }).join('');
             };
+
+            /* Instant, themed hover tooltip. The tip is a sibling of #stat-bars
+               (inside .chart-wrap), so the live re-render of the bars never
+               wipes it. Bars offset against .chart-wrap, their positioned
+               ancestor. */
+            const tip = document.getElementById('stat-tip');
+            if (tip) {
+                bars.addEventListener('mouseover', (e) => {
+                    const bar = e.target.closest('.bar');
+                    if (!bar || !bars.contains(bar)) { return; }
+                    tip.innerHTML = `<div class="tl">${bar.dataset.label}</div>`
+                        + `<div><span class="sw" style="background:var(--accent)"></span>${bar.dataset.views} views</div>`
+                        + `<div><span class="sw" style="background:var(--entries)"></span>${bar.dataset.entries} entries</div>`;
+                    tip.style.left = (bar.offsetLeft + bar.offsetWidth / 2) + 'px';
+                    tip.style.top = bar.offsetTop + 'px';
+                    tip.classList.add('show');
+                });
+                bars.addEventListener('mouseleave', () => tip.classList.remove('show'));
+            }
 
             const refresh = async () => {
                 try {
