@@ -22,7 +22,7 @@
         .stat > span { color: var(--muted); font-size: 0.9rem; }
         .live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #16a34a; margin-right: 8px; vertical-align: baseline; animation: livepulse 1.6s ease-in-out infinite; }
         @keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 14px; }
+        .bars { display: flex; align-items: flex-end; gap: 3px; height: 60px; }
         /* Each bucket holds two bars: views (accent) and entries (amber), each
            scaled to its own peak so the smaller entries trend stays visible. */
         .bars .bar { flex: 1; display: flex; align-items: flex-end; gap: 1px; height: 100%; min-width: 0; }
@@ -43,6 +43,23 @@
         .chart-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; }
         .chart-foot .cap { font-size: 0.82rem; }
         .chart-foot .ranges { margin: 0 0 0 auto; }
+        /* Chart plot: left y-axis (views), bars, right y-axis (entries), x-axis. */
+        .chart-plot { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: end; margin-top: 14px; }
+        .chart-plot .chart-wrap { grid-row: 1; grid-column: 2; }
+        .chart-plot .y-axis { grid-row: 1; }
+        .chart-plot .y-axis.r { grid-column: 3; }
+        .chart-plot .x-axis { grid-row: 2; grid-column: 2; }
+        .y-axis { display: flex; flex-direction: column; justify-content: space-between; height: 60px; font-size: 0.68rem; font-variant-numeric: tabular-nums; line-height: 1; }
+        .y-axis.l { text-align: right; color: var(--accent); }
+        .y-axis.r { text-align: left; color: var(--entries); }
+        .x-axis { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--muted); margin-top: 5px; }
+        /* Legend click toggles a series on/off. */
+        .chart-plot.hide-v .bar .v { display: none; }
+        .chart-plot.hide-e .bar .e { display: none; }
+        .chart-plot.hide-v .y-axis.l { opacity: 0.3; }
+        .chart-plot.hide-e .y-axis.r { opacity: 0.3; }
+        .chart-legend span { cursor: pointer; user-select: none; }
+        .chart-legend span.off { opacity: 0.4; text-decoration: line-through; }
         .ranges { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 2px; }
         .ranges .range { font-size: 0.8rem; padding: 4px 11px; border: 1px solid rgba(0, 0, 0, 0.12); background: transparent; color: var(--muted); border-radius: 999px; cursor: pointer; }
         .ranges .range.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -132,22 +149,31 @@
                 @php($avg = $site->avgDwellSeconds())
                 <div class="stat"><b id="stat-dwell">{{ $avg > 0 ? sprintf('%d:%02d', intdiv($avg, 60), $avg % 60) : '—' }}</b><span>avg. time on page</span></div>
             </div>
-            @php($peak = max(1, collect($stats)->max('views')))
-            @php($entryPeak = max(1, collect($stats)->max('entries')))
-            <div class="chart-wrap">
-                <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" data-range="{{ $statRange }}">
-                    @foreach ($stats as $point)
-                        <span class="bar" aria-label="{{ $point['label'] }}: {{ $point['views'] }} views, {{ $point['entries'] }} entries" data-label="{{ $point['label'] }}" data-views="{{ $point['views'] }}" data-entries="{{ $point['entries'] }}">
-                            <i class="v" style="height: {{ max(2, (int) round($point['views'] / $peak * 60)) }}px"></i>
-                            <i class="e" style="height: {{ max(2, (int) round($point['entries'] / $entryPeak * 60)) }}px"></i>
-                        </span>
-                    @endforeach
+            @php($viewMax = (int) collect($stats)->max('views'))
+            @php($entryMax = (int) collect($stats)->max('entries'))
+            @php($peak = max(1, $viewMax))
+            @php($entryPeak = max(1, $entryMax))
+            @php($n = count($stats))
+            @php($xTicks = $n ? collect([0, 0.25, 0.5, 0.75, 1])->map(fn ($f) => (int) round($f * ($n - 1)))->unique()->map(fn ($i) => $stats[$i]['label'])->values() : collect())
+            <div class="chart-plot" id="stat-plot">
+                <div class="y-axis l"><span id="y-views-peak">{{ number_format($viewMax) }}</span><span>0</span></div>
+                <div class="chart-wrap">
+                    <div class="bars" id="stat-bars" data-url="{{ route('microsite.stats', $site->slug) }}" data-range="{{ $statRange }}">
+                        @foreach ($stats as $point)
+                            <span class="bar" aria-label="{{ $point['label'] }}: {{ $point['views'] }} views, {{ $point['entries'] }} entries" data-label="{{ $point['label'] }}" data-views="{{ $point['views'] }}" data-entries="{{ $point['entries'] }}">
+                                <i class="v" style="height: {{ max(2, (int) round($point['views'] / $peak * 60)) }}px"></i>
+                                <i class="e" style="height: {{ max(2, (int) round($point['entries'] / $entryPeak * 60)) }}px"></i>
+                            </span>
+                        @endforeach
+                    </div>
+                    <div class="chart-tip" id="stat-tip"></div>
                 </div>
-                <div class="chart-tip" id="stat-tip"></div>
+                <div class="y-axis r"><span id="y-entries-peak">{{ number_format($entryMax) }}</span><span>0</span></div>
+                <div class="x-axis" id="stat-xaxis">@foreach ($xTicks as $t)<span>{{ $t }}</span>@endforeach</div>
             </div>
-            <div class="chart-legend">
-                <span><i style="background: var(--accent)"></i>Views</span>
-                <span><i style="background: var(--entries)"></i>Entries</span>
+            <div class="chart-legend" id="stat-legend">
+                <span data-series="v" role="button" tabindex="0" aria-pressed="true"><i style="background: var(--accent)"></i>Views</span>
+                <span data-series="e" role="button" tabindex="0" aria-pressed="true"><i style="background: var(--entries)"></i>Entries</span>
             </div>
             <div class="chart-foot">
                 <span class="muted cap"><span id="stat-caption">{{ $statCaption }}</span> (built-in analytics) · updates live</span>
@@ -785,14 +811,42 @@
             };
 
             const renderBars = (series) => {
-                const peak = Math.max(1, ...series.map((x) => x.views));
-                const entryPeak = Math.max(1, ...series.map((x) => x.entries));
+                const viewMax = Math.max(0, ...series.map((x) => x.views));
+                const entryMax = Math.max(0, ...series.map((x) => x.entries));
+                const peak = Math.max(1, viewMax);
+                const entryPeak = Math.max(1, entryMax);
                 bars.innerHTML = series.map((x) => {
                     const v = Math.max(2, Math.round(x.views / peak * 60));
                     const e = Math.max(2, Math.round(x.entries / entryPeak * 60));
                     return `<span class="bar" aria-label="${x.label}: ${x.views} views, ${x.entries} entries" data-label="${x.label}" data-views="${x.views}" data-entries="${x.entries}"><i class="v" style="height:${v}px"></i><i class="e" style="height:${e}px"></i></span>`;
                 }).join('');
+                const yv = document.getElementById('y-views-peak'); if (yv) { yv.textContent = viewMax.toLocaleString(); }
+                const ye = document.getElementById('y-entries-peak'); if (ye) { ye.textContent = entryMax.toLocaleString(); }
+                const xax = document.getElementById('stat-xaxis');
+                if (xax && series.length) {
+                    const seen = new Set();
+                    xax.innerHTML = [0, 0.25, 0.5, 0.75, 1]
+                        .map((f) => Math.round(f * (series.length - 1)))
+                        .filter((i) => (seen.has(i) ? false : seen.add(i)))
+                        .map((i) => `<span>${series[i].label}</span>`).join('');
+                }
             };
+
+            /* Legend click toggles a series on/off. The hidden state lives on the
+               plot container, so the live re-render of the bars keeps it. */
+            const plot = document.getElementById('stat-plot');
+            const legend = document.getElementById('stat-legend');
+            if (plot && legend) {
+                const toggleSeries = (span) => {
+                    const hidden = plot.classList.toggle(span.dataset.series === 'v' ? 'hide-v' : 'hide-e');
+                    span.classList.toggle('off', hidden);
+                    span.setAttribute('aria-pressed', hidden ? 'false' : 'true');
+                };
+                legend.querySelectorAll('span[data-series]').forEach((span) => {
+                    span.addEventListener('click', () => toggleSeries(span));
+                    span.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSeries(span); } });
+                });
+            }
 
             /* Instant, themed hover tooltip. The tip is a sibling of #stat-bars
                (inside .chart-wrap), so the live re-render of the bars never
