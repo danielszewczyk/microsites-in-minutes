@@ -55,7 +55,7 @@ class SiteComposer
                 ? Site::STATUS_DRAFT
                 : Site::STATUS_PUBLISHED,
             'inputs' => $inputs,
-            'content' => $this->copywriter->generate($inputs),
+            'content' => $this->compose($inputs),
             'settings' => $this->settings($inputs, $owner),
             'published_at' => now(),
         ]);
@@ -91,7 +91,7 @@ class SiteComposer
             $site->update([
                 'type' => $inputs['type'],
                 'inputs' => $inputs,
-                'content' => $this->copywriter->generate($inputs),
+                'content' => $this->compose($inputs, $site->trackIds()),
                 'settings' => $this->settings($inputs, $site->owner),
             ]);
 
@@ -117,6 +117,24 @@ class SiteComposer
         $site->forceFill(['last_build_ms' => $ms])->save();
 
         return ['ms' => $ms, 'cents' => $event->cost_cents];
+    }
+
+    /**
+     * Generate the page content and stamp each trackable link and button with
+     * its stable click-tracking id, carrying forward any id already assigned so
+     * an element keeps its identity across regenerates. This is where element
+     * identity is minted — at publish time, not at render.
+     *
+     * @param  array<string, mixed>  $inputs
+     * @param  array<string, string>  $existingTrack
+     * @return array<string, mixed>
+     */
+    protected function compose(array $inputs, array $existingTrack = []): array
+    {
+        $content = $this->copywriter->generate($inputs);
+        $content['track'] = ClickTargets::assign($existingTrack);
+
+        return $content;
     }
 
     /**

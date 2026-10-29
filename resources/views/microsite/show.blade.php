@@ -118,7 +118,7 @@
                 @endif
                 <h1>{{ $content['hero']['headline'] }}</h1>
                 <p class="subhead">{{ $content['hero']['subhead'] }}</p>
-                <a class="btn" href="#enter">{{ $content['cta']['label'] }}</a>
+                <a class="btn" href="#enter"@isset($trackIds['hero_cta']) data-mim-id="{{ $trackIds['hero_cta'] }}"@endisset>{{ $content['cta']['label'] }}</a>
                 @if (!empty($content['cta']['note']))
                     <p class="cta-note">{{ $content['cta']['note'] }}</p>
                 @endif
@@ -244,7 +244,7 @@
                         @endif
                     @endif
                     <div>
-                        <button type="submit" class="btn" id="entry-submit">{{ $content['cta']['label'] }}</button>
+                        <button type="submit" class="btn" id="entry-submit"@isset($trackIds['entry_submit']) data-mim-id="{{ $trackIds['entry_submit'] }}"@endisset>{{ $content['cta']['label'] }}</button>
                     </div>
                 </form>
             </div>
@@ -254,12 +254,12 @@
     <footer>
         <div class="wrap">
             @if ($site->isSweepstakes() && is_array($content['rules'] ?? null))
-                <p><a href="{{ route('microsite.rules', $site->slug) }}">Official rules, eligibility &amp; free entry</a>
-                    @if ($rulesDocUrl) · <a href="{{ $rulesDocUrl }}">Official rules (document)</a>@endif ·
+                <p><a href="{{ route('microsite.rules', $site->slug) }}"@isset($trackIds['rules']) data-mim-id="{{ $trackIds['rules'] }}"@endisset>Official rules, eligibility &amp; free entry</a>
+                    @if ($rulesDocUrl) · <a href="{{ $rulesDocUrl }}"@isset($trackIds['rules_doc']) data-mim-id="{{ $trackIds['rules_doc'] }}"@endisset>Official rules (document)</a>@endif ·
                     No purchase necessary. Open to {{ \Illuminate\Support\Str::limit($content['rules']['eligibility'], 90) }}</p>
             @endif
             @if ($showBranding)
-                <p>Made with <a href="{{ route('home') }}">Microsites in Minutes</a></p>
+                <p>Made with <a href="{{ route('home') }}"@isset($trackIds['branding']) data-mim-id="{{ $trackIds['branding'] }}"@endisset>Microsites in Minutes</a></p>
             @endif
         </div>
     </footer>
@@ -556,6 +556,26 @@
             };
             document.addEventListener('visibilitychange', () => { accrue(); if (document.hidden) { sendDwell(); } });
             window.addEventListener('pagehide', sendDwell);
+
+            @if (! empty($trackIds))
+            /* Click tracking (Pro add-on): one delegated listener, emitted only
+               on a site with the add-on on. On a click on or inside a tracked
+               link or button, send its stable id — assigned at publish time —
+               with sendBeacon, so navigation is never delayed. Anonymous and
+               cookieless: only the element id leaves the page. */
+            if (data.track && navigator.sendBeacon) {
+                document.addEventListener('click', (event) => {
+                    const hit = event.target.closest && event.target.closest('a, button, [role="button"]');
+                    if (!hit) { return; }
+                    const node = hit.closest('[data-mim-id]');
+                    const id = node && node.getAttribute('data-mim-id');
+                    if (!id) { return; }
+                    try {
+                        navigator.sendBeacon(data.track, new Blob([JSON.stringify({ id })], { type: 'application/json' }));
+                    } catch (e) { /* navigating anyway */ }
+                }, true);
+            }
+            @endif
         })();
     </script>
 

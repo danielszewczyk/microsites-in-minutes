@@ -113,6 +113,10 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
         ->middleware('throttle:30,1,microsite-ping')
         ->name('microsite.ping');
 
+    Route::post('/track', [MicrositeController::class, 'track'])
+        ->middleware('throttle:60,1,microsite-track')
+        ->name('microsite.track');
+
     Route::get('/favicon.svg', [SeoController::class, 'favicon'])
         ->middleware('throttle:120,1,microsite-favicon')
         ->name('microsite.favicon');

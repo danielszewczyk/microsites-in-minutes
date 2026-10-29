@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ForwardEntry;
+use App\Jobs\RecordSiteClick;
 use App\Jobs\RecordSiteHit;
 use App\Jobs\VerifyEntryEmail;
 use App\Jobs\VerifyEntryPhone;
@@ -10,6 +11,7 @@ use App\Models\Site;
 use App\Models\SiteAlarm;
 use App\Models\SiteAsset;
 use App\Models\SiteEntry;
+use App\Sites\ClickTargets;
 use App\Support\BannerImage;
 use App\Support\EmailAuthenticity;
 use App\Support\EntryCode;
@@ -118,6 +120,80 @@ class MicrositeController extends Controller
         }
 
         return response()->noContent();
+    }
+
+    /**
+     * Ingest one click on a tracked link or button (the Pro click-tracking
+     * add-on). The published page's beacon posts a stable element id; this
+     * endpoint is public and CSRF-exempt like the other microsite beacons, and
+     * is rate-limited per IP by the route throttle. Everything counted is
+     * anonymous — no cookie, no visitor identity. A click that does not pass the
+     * gates is accepted and silently dropped, so a beacon never errors a page.
+     */
+    public function track(Request $request, string $slug): Response
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+
+        // Only a Pro site with the add-on is counted; otherwise drop silently.
+        if (! $site->tracksClicks()) {
+            return response()->noContent();
+        }
+
+        // Drop obvious bots so counts aren't trivially inflated by crawlers.
+        if (self::looksLikeBot((string) $request->userAgent())) {
+            return response()->noContent();
+        }
+
+        // Only a known element id for this site is counted. An unknown id
+        // (spoofed or stale) is dropped, which bounds what can ever reach the
+        // roll-up — the element set is fixed and assigned at publish time.
+        $elementId = $this->stringInput($request, 'id');
+        $slot = ClickTargets::slotForId($site->trackIds(), $elementId);
+
+        if ($slot === null) {
+            return response()->noContent();
+        }
+
+        // The href is resolved server-side from the slot, never taken from the
+        // client, so the beacon can't smuggle arbitrary strings into storage.
+        dispatch(RecordSiteClick::forNow($site->id, $elementId, $this->trackedHref($site, $slot)))->afterResponse();
+
+        return response()->noContent();
+    }
+
+    /**
+     * The href the page renders for a tracked slot, resolved server-side. Only
+     * link slots have one; buttons return null.
+     */
+    protected function trackedHref(Site $site, string $slot): ?string
+    {
+        return match ($slot) {
+            'hero_cta' => '#enter',
+            'rules' => route('microsite.rules', $site->slug, absolute: false),
+            'rules_doc' => $site->asset(SiteAsset::RULES_DOC) !== null
+                ? route('microsite.asset', [$site->slug, SiteAsset::RULES_DOC], absolute: false)
+                : null,
+            'branding' => route('home', absolute: false),
+            default => null,
+        };
+    }
+
+    /**
+     * Whether a user agent is an obvious bot or missing entirely. A real
+     * browser's sendBeacon always carries a UA, so an empty one is treated as a
+     * bot. Deliberately simple for v1 — a coarse filter, not a bot-detection
+     * system.
+     */
+    protected static function looksLikeBot(string $userAgent): bool
+    {
+        if (trim($userAgent) === '') {
+            return true;
+        }
+
+        return preg_match(
+            '/bot|crawl|spider|slurp|baidu|yandex|duckduck|facebookexternalhit|embedly|preview|headless|phantom|curl|wget|python-requests|http-client|monitor/i',
+            $userAgent,
+        ) === 1;
     }
 
     /**
@@ -563,6 +639,10 @@ class MicrositeController extends Controller
                 ? route('microsite.asset', [$site->slug, SiteAsset::RULES_DOC], absolute: false)
                 : null,
             'turnstileSiteKey' => Turnstile::siteKey(),
+            // Click tracking renders only for a Pro site with the add-on: the
+            // elements carry their ids and the beacon has an endpoint to post
+            // to; otherwise both are empty and the page tracks nothing.
+            'trackIds' => $site->tracksClicks() ? $site->trackIds() : [],
             'client' => [
                 'version' => $site->version(),
                 'enter' => route('microsite.enter', $site->slug, absolute: false),
@@ -571,6 +651,7 @@ class MicrositeController extends Controller
                 'resend_seconds' => EntryCode::RESEND_SECONDS,
                 'version_url' => route('microsite.version', $site->slug, absolute: false),
                 'ping' => route('microsite.ping', $site->slug, absolute: false),
+                'track' => $site->tracksClicks() ? route('microsite.track', $site->slug, absolute: false) : null,
             ],
         ];
     }

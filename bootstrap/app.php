@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             's/*/enter',
             's/*/send-code',
             's/*/ping',
+            's/*/track',
         ]);
 
         /*
