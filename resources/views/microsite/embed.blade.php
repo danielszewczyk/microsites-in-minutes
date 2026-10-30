@@ -7,7 +7,6 @@
     <title>{{ $content['form']['heading'] ?? 'Sign up' }}</title>
     <style>
         :root { --accent: {{ $accent }}; --ink: #1c1917; --muted: #57534e; --line: #e7e5e4; --paper: #fff; }
-        @media (prefers-color-scheme: dark) { :root { --ink: #fafaf9; --muted: #a8a29e; --line: #44403c; --paper: #1c1917; } }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: transparent; }
         .box { max-width: 420px; margin: 0 auto; padding: 8px; }

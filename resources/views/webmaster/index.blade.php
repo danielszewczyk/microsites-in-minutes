@@ -7,7 +7,6 @@
     <title>Webmaster — all sites</title>
     <style>
         :root { --accent: #0f766e; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --card: #fff; --line: #e7e5e4; }
-        @media (prefers-color-scheme: dark) { :root { --ink: #fafaf9; --muted: #a8a29e; --paper: #1c1917; --card: #292524; --line: #44403c; } }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); line-height: 1.5; }
         .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }

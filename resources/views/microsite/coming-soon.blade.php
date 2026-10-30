@@ -9,7 +9,6 @@
     <link rel="icon" href="{{ route('microsite.favicon', $site->slug) }}">
     <style>
         :root { --accent: {{ $accent }}; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --line: #e7e5e4; }
-        @media (prefers-color-scheme: dark) { :root { --ink: #fafaf9; --muted: #a8a29e; --paper: #1c1917; --line: #44403c; } }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); display: grid; place-items: center; min-height: 100vh; text-align: center; }
         .wrap { max-width: 560px; padding: 32px 22px; }

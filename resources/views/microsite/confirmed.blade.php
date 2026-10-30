@@ -7,7 +7,6 @@
     <title>{{ $confirmed ? 'Entry confirmed' : 'Link not valid' }}</title>
     <style>
         :root { --accent: {{ $accent }}; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; }
-        @media (prefers-color-scheme: dark) { :root { --ink: #fafaf9; --muted: #a8a29e; --paper: #1c1917; } }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); display: grid; place-items: center; min-height: 100vh; text-align: center; }
         .box { max-width: 420px; padding: 32px 24px; }
         .mark { width: 64px; height: 64px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 2rem; margin: 0 auto 18px; }

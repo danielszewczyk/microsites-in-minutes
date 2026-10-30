@@ -7,7 +7,6 @@
     <title>Manage — {{ $inputs['business_name'] ?? 'your site' }}</title>
     <style>
         :root { --accent: {{ $site->accent() }}; --entries: #f59e0b; --ink: #1c1917; --muted: #57534e; --paper: #fafaf9; --card: #fff; --line: #e7e5e4; }
-        @media (prefers-color-scheme: dark) { :root { --entries: #fbbf24; --ink: #fafaf9; --muted: #a8a29e; --paper: #1c1917; --card: #292524; --line: #44403c; } }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); line-height: 1.6; }
         .wrap { max-width: 900px; margin: 0 auto; padding: 0 20px 80px; }
@@ -77,7 +76,6 @@
         /* Destructive actions (delete an alarm, a link; remove a domain). */
         .rm { background: transparent; color: #b91c1c; border: 1px solid color-mix(in srgb, #b91c1c 35%, var(--line)); border-radius: 9px; padding: 8px 14px; font: inherit; font-weight: 600; font-size: 0.85rem; line-height: 1; cursor: pointer; }
         .rm:hover { background: #fee2e2; border-color: #b91c1c; }
-        @media (prefers-color-scheme: dark) { .rm:hover { background: color-mix(in srgb, #b91c1c 28%, var(--card)); color: #fecaca; } }
         /* Add-alarm row: labels above compact controls, all the same height. */
         .alarm-add { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; }
         .alarm-add .fld { display: flex; flex-direction: column; gap: 5px; }
