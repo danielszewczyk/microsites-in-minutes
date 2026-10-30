@@ -158,6 +158,16 @@ class BillingTest extends TestCase
             ->assertSessionHas('error', 'This site already has a monthly subscription.');
     }
 
+    public function test_the_billing_portal_needs_a_stripe_customer(): void
+    {
+        config(['services.stripe.enabled' => true]);
+        $site = Site::factory()->withToken('tok')->create();
+
+        $this->withCookie($site->cookieName(), 'tok')
+            ->post(route('microsite.billing.portal', $site->slug))
+            ->assertSessionHas('error', 'There is no billing account to manage yet.');
+    }
+
     public function test_extend_with_the_saved_card_is_off_when_stripe_is_disabled(): void
     {
         config(['services.stripe.enabled' => false]);

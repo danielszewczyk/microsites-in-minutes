@@ -270,6 +270,24 @@ class Billing
         $site->update($attributes);
     }
 
+    /**
+     * A Stripe Billing Portal session so the owner can update their card or
+     * cancel the monthly plan themselves. Null when there is no customer yet.
+     */
+    public function billingPortalUrl(Owner $owner, string $returnUrl): ?string
+    {
+        if ($owner->stripe_customer_id === null) {
+            return null;
+        }
+
+        $session = $this->client()->billingPortal->sessions->create([
+            'customer' => $owner->stripe_customer_id,
+            'return_url' => $returnUrl,
+        ]);
+
+        return (string) $session->url;
+    }
+
     protected function customerFor(Owner $owner): string
     {
         if ($owner->stripe_customer_id === null) {

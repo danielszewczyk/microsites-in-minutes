@@ -170,6 +170,35 @@ class SiteManageController extends Controller
         return back()->with('error', 'Your saved card needs confirming. Use Pay $1 for a day instead.');
     }
 
+    /**
+     * Stripe Billing Portal: the owner updates their card or cancels the plan.
+     */
+    public function billingPortal(Request $request, string $slug, Billing $billing): RedirectResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        if (! config('services.stripe.enabled')) {
+            return back()->with('error', 'Payments are not switched on yet.');
+        }
+
+        $owner = $site->owner;
+
+        if ($owner === null || $owner->stripe_customer_id === null) {
+            return back()->with('error', 'There is no billing account to manage yet.');
+        }
+
+        try {
+            $url = $billing->billingPortalUrl($owner, route('microsite.manage', $site->slug));
+        } catch (ApiErrorException $e) {
+            Log::error('Stripe billing portal failed', ['site_id' => $site->id, 'message' => $e->getMessage()]);
+
+            return back()->with('error', 'We could not reach our payment provider. Please try again in a moment.');
+        }
+
+        return redirect()->away((string) $url);
+    }
+
     public function regenerate(Request $request, string $slug, SiteComposer $composer): RedirectResponse
     {
         $site = Site::query()->where('slug', $slug)->firstOrFail();
