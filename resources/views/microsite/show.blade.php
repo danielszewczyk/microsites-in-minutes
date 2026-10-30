@@ -144,8 +144,8 @@
                  see a button that would refuse them. On a vanity domain the cookie (set on
                  the app domain) is absent, so the check fails safe and it stays hidden. --}}
             <span class="preview-actions">
-                <button type="button" class="preview-edit" id="preview-edit" aria-pressed="false">Edit</button>
-                <a class="preview-manage" href="{{ route('microsite.manage', $site->slug, absolute: false) }}">Manage</a>
+                <button type="button" class="preview-edit" id="preview-edit" aria-pressed="false">Edit page</button>
+                <a class="preview-manage" href="{{ route('microsite.manage', $site->slug, absolute: false) }}">Manage site</a>
             </span>
             <span class="preview-note" id="preview-note">Not live and not accepting entries. Visible only to people with this link.</span>
         </div>
@@ -805,7 +805,7 @@
                 toggle.addEventListener('click', () => {
                     editing = !editing;
                     document.body.classList.toggle('mim-editing', editing);
-                    toggle.textContent = editing ? 'Done' : 'Edit';
+                    toggle.textContent = editing ? 'Done' : 'Edit page';
                     toggle.setAttribute('aria-pressed', editing ? 'true' : 'false');
                     note.textContent = editing ? 'Click any text to change it. Esc cancels an edit.' : noteText;
                     if (!editing) { close(); }
