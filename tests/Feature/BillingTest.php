@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Owner;
 use App\Models\Site;
 use App\Sites\Billing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -107,6 +108,42 @@ class BillingTest extends TestCase
             ->assertSessionHas('error', 'Keep it live for $1 a day to publish.');
 
         $this->assertTrue($site->refresh()->isDraft());
+    }
+
+    public function test_an_invoice_with_no_subscription_credits_no_one(): void
+    {
+        // A null subscription id must not become IS NULL and match every
+        // subscription-less site (which would hand out a free month).
+        $site = Site::factory()->create(['paid_through' => null]);
+
+        app(Billing::class)->handleInvoicePaid(['id' => 'in_null', 'billing_reason' => 'subscription_cycle', 'subscription' => null]);
+
+        $this->assertNull($site->refresh()->paid_through);
+    }
+
+    public function test_only_a_renewal_cycle_invoice_adds_a_month(): void
+    {
+        $site = Site::factory()->create(['paid_through' => null]);
+        $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => 'sub_x']]);
+
+        foreach (['subscription_update', 'manual', 'subscription_threshold'] as $reason) {
+            app(Billing::class)->handleInvoicePaid(['id' => 'in_'.$reason, 'billing_reason' => $reason, 'subscription' => 'sub_x']);
+        }
+
+        $this->assertNull($site->refresh()->paid_through);
+    }
+
+    public function test_extend_with_the_saved_card_is_off_when_stripe_is_disabled(): void
+    {
+        config(['services.stripe.enabled' => false]);
+        $owner = Owner::factory()->create([
+            'stripe_customer_id' => 'cus_1',
+            'stripe_payment_method_id' => 'pm_1',
+        ]);
+        $site = Site::factory()->for($owner)->create();
+
+        // The kill switch returns false before any Stripe call, so no charge.
+        $this->assertFalse(app(Billing::class)->extendWithSavedCard($site, $owner));
     }
 
     /**

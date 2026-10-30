@@ -88,11 +88,22 @@ class SiteComposer
         $site = DB::transaction(function () use ($site, $inputs): Site {
             $site = Site::query()->lockForUpdate()->findOrFail($site->id);
 
+            $settings = $this->settings($inputs, $site->owner);
+
+            // Preserve billing-managed keys that live in settings but are not
+            // user inputs, so saving an edit never wipes a subscription link or
+            // the paid-webhook dedupe history.
+            foreach (['stripe_subscription_id', 'payment_refs'] as $key) {
+                if (array_key_exists($key, $site->settings)) {
+                    $settings[$key] = $site->settings[$key];
+                }
+            }
+
             $site->update([
                 'type' => $inputs['type'],
                 'inputs' => $inputs,
                 'content' => $this->compose($inputs, $site->trackIds()),
-                'settings' => $this->settings($inputs, $site->owner),
+                'settings' => $settings,
             ]);
 
             return $site;

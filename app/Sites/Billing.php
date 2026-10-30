@@ -5,7 +5,7 @@ namespace App\Sites;
 use App\Models\Owner;
 use App\Models\Site;
 use Illuminate\Support\Carbon;
-use Stripe\Exception\CardException;
+use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
 /**
@@ -82,11 +82,18 @@ class Billing
      */
     public function extendWithSavedCard(Site $site, Owner $owner): bool
     {
+        if (! config('services.stripe.enabled')) {
+            return false;
+        }
+
         if ($owner->stripe_customer_id === null || $owner->stripe_payment_method_id === null) {
             return false;
         }
 
         try {
+            // The idempotency key collapses a double-click (or a retry after a
+            // timeout) in the same minute into one charge; a genuine second
+            // extension the next minute is a new, intended charge.
             $intent = $this->client()->paymentIntents->create([
                 'amount' => config('plans.day_pass.price'),
                 'currency' => 'usd',
@@ -95,8 +102,10 @@ class Billing
                 'off_session' => true,
                 'confirm' => true,
                 'metadata' => ['site_id' => (string) $site->id, 'kind' => 'day'],
-            ]);
-        } catch (CardException) {
+            ], ['idempotency_key' => 'extend:'.$site->id.':'.now()->format('YmdHi')]);
+        } catch (ApiErrorException) {
+            // Any Stripe error (declined card, connection, rate limit, detached
+            // method) means no charge to credit — send the owner to Checkout.
             return false;
         }
 
@@ -153,11 +162,24 @@ class Billing
      */
     public function handleInvoicePaid(array $invoice): void
     {
-        if (($invoice['billing_reason'] ?? null) === 'subscription_create') {
+        // Only a regular renewal cycle adds a month. The first invoice is
+        // covered by Checkout (subscription_create), and every other reason
+        // (updates, manual, thresholds) must not credit time.
+        if (($invoice['billing_reason'] ?? null) !== 'subscription_cycle') {
             return;
         }
 
-        $site = Site::query()->where('settings->stripe_subscription_id', $invoice['subscription'] ?? null)->first();
+        // The subscription id moved under parent.subscription_details on newer
+        // Stripe API versions; read either, and never match on a null (which
+        // would become IS NULL and hit every subscription-less site).
+        $subscriptionId = $invoice['subscription']
+            ?? ($invoice['parent']['subscription_details']['subscription'] ?? null);
+
+        if (empty($subscriptionId)) {
+            return;
+        }
+
+        $site = Site::query()->where('settings->stripe_subscription_id', $subscriptionId)->first();
 
         if ($site === null) {
             return;
@@ -215,7 +237,8 @@ class Billing
 
     protected function addMonths(Site $site, int $months): void
     {
-        $this->extend($site, fn (Carbon $from) => $from->addMonths($months));
+        // No overflow: a month added to Jan 31 lands on Feb 28/29, not Mar 3.
+        $this->extend($site, fn (Carbon $from) => $from->addMonthsNoOverflow($months));
     }
 
     protected function extend(Site $site, callable $move): void
