@@ -208,6 +208,12 @@
                         <label for="f-phone">Phone</label>
                         <input type="text" id="f-phone" name="phone" maxlength="40" autocomplete="tel">
                     </div>
+                    @if ($site->collectsDateOfBirth())
+                        <div>
+                            <label for="f-dob">Date of birth</label>
+                            <input type="date" id="f-dob" name="dob" max="{{ now()->toDateString() }}" min="1900-01-01" autocomplete="bday">
+                        </div>
+                    @endif
                     <div>
                         <label for="f-message">Anything to add? (optional)</label>
                         <textarea id="f-message" name="message" maxlength="1000"></textarea>

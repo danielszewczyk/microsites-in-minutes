@@ -429,6 +429,15 @@ class Site extends Model
     }
 
     /**
+     * Whether the entry form asks the visitor for their date of birth (kept as
+     * an optional field on the entry, not an age gate). Off by default.
+     */
+    public function collectsDateOfBirth(): bool
+    {
+        return (bool) ($this->settings['collect_dob'] ?? false);
+    }
+
+    /**
      * The from-address and name for this site's verification emails. Defaults
      * to the platform's own Resend-verified domain; a per-site override (the
      * seam for future per-customer verified domains) lives in

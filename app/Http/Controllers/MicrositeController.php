@@ -213,6 +213,7 @@ class MicrositeController extends Controller
             'content' => $site->content,
             'accent' => $site->accent(),
             'requiresEmailCode' => $site->requiresEmailCode(),
+            'collectsDob' => $site->collectsDateOfBirth(),
             'fullUrl' => $site->url(),
             'client' => ['enter' => route('microsite.enter', $site->slug, absolute: true)],
         ])->render();
@@ -276,6 +277,23 @@ class MicrositeController extends Controller
             'phone' => ['nullable', 'string', 'max:40'],
             'message' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        // Optional date-of-birth add-on. Validated up front — before the one-time
+        // email code is burned or a photo is written to disk — so a bad date
+        // never costs the entrant their code or leaves an orphan upload. Stored
+        // in the entry's extra JSON, so no schema change is needed and future
+        // optional fields can sit beside it. The field is a native date input, so
+        // the format is fixed; today back to 1900 is accepted.
+        $extra = [];
+        if ($site->collectsDateOfBirth()) {
+            $dob = $request->validate([
+                'dob' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:1900-01-01'],
+            ], [], ['dob' => 'date of birth'])['dob'] ?? null;
+
+            if (filled($dob)) {
+                $extra['dob'] = $dob;
+            }
+        }
 
         // Email code verification add-on: every real entry on a site that
         // turned it on must carry a verified Turnstile token (when configured)
@@ -350,6 +368,7 @@ class MicrositeController extends Controller
             'phone' => $validated['phone'] ?? null,
             'message' => $validated['message'] ?? null,
             'photo_path' => $photoPath,
+            'extra' => $extra ?: null,
             'is_amoe' => false,
             'ip_hash' => hash('sha256', (string) $request->ip()),
             'ip' => $request->ip(),

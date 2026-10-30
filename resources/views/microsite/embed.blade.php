@@ -42,6 +42,9 @@
                 <div><label for="n">Your name</label><input type="text" id="n" name="name" maxlength="80" required autocomplete="name"></div>
                 <div><label for="e">Email</label><input type="email" id="e" name="email" maxlength="120" autocomplete="email"></div>
                 <div><label for="p">Phone</label><input type="text" id="p" name="phone" maxlength="40" autocomplete="tel"></div>
+                @if ($collectsDob ?? false)
+                    <div><label for="d">Date of birth</label><input type="date" id="d" name="dob" max="{{ now()->toDateString() }}" min="1900-01-01" autocomplete="bday"></div>
+                @endif
                 <div class="hp" aria-hidden="true"><label for="w">Leave empty</label><input type="text" id="w" name="website" tabindex="-1" autocomplete="off"></div>
                 <div><button type="submit" class="btn">{{ $content['cta']['label'] ?? 'Submit' }}</button></div>
             </form>

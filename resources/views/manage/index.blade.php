@@ -526,6 +526,7 @@
                                     <details>
                                         <summary class="muted" style="cursor:pointer;font-size:0.82rem">view</summary>
                                         <div class="muted" style="font-size:0.78rem;line-height:1.5;padding-top:4px">
+                                            DOB: {{ $entry->extra['dob'] ?? '—' }}<br>
                                             Device: {{ $entry->device ?: '—' }}<br>
                                             Country: {{ $entry->country ?: '—' }}<br>
                                             IP: {{ $entry->ip ?: '—' }}<br>
@@ -759,6 +760,14 @@
                     <label class="muted" style="font-weight:400;display:block">
                         <input type="checkbox" name="collect_photo" value="1" style="width:auto" {{ ($inputs['collect_photo'] ?? false) ? 'checked' : '' }}>
                         Ask entrants to <strong>add a photo</strong> (e.g. "submit your smile") — a live camera with a framing mask on phones. Photos are private to you.
+                    </label>
+                </fieldset>
+
+                <fieldset style="margin-top:18px">
+                    <legend>Entry fields <span class="hint" style="font-weight:400;color:var(--muted)">— add-ons</span></legend>
+                    <label class="muted" style="font-weight:400;display:block">
+                        <input type="checkbox" name="collect_dob" value="1" style="width:auto" {{ ($inputs['collect_dob'] ?? false) ? 'checked' : '' }}>
+                        Ask entrants for their <strong>date of birth</strong> — an optional field on the entry form. Shown on entries and included in your CSV export.
                     </label>
                 </fieldset>
 

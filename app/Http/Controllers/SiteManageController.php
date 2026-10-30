@@ -180,6 +180,7 @@ class SiteManageController extends Controller
             'require_confirmation' => ['boolean'],
             'require_email_code' => ['boolean'],
             'collect_photo' => ['boolean'],
+            'collect_dob' => ['boolean'],
             'webhook_url' => ['nullable', 'url', 'max:300'],
             'go_live_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:go_live_at'],
@@ -193,8 +194,17 @@ class SiteManageController extends Controller
             'amoe' => ['nullable', 'string', 'max:800'],
         ]);
 
-        // An unticked checkbox sends no key, so read it explicitly or the old value would stick.
-        $composer->regenerate($site, [...$validated, 'hero_overlay' => $request->boolean('hero_overlay')]);
+        // An unticked checkbox sends no key, and regenerate() merges over the
+        // site's existing inputs, so each entry add-on checkbox must be read
+        // explicitly or an enabled add-on could never be switched back off.
+        // (remove_branding is left out on purpose: it is plan-gated and rendered
+        // disabled when the plan disallows it, so a blanket read would clear it.)
+        $checkboxes = [];
+        foreach (['hero_overlay', 'verify_emails', 'verify_phones', 'require_confirmation', 'require_email_code', 'collect_photo', 'collect_dob'] as $box) {
+            $checkboxes[$box] = $request->boolean($box);
+        }
+
+        $composer->regenerate($site, [...$validated, ...$checkboxes]);
 
         return back()->with('status', 'Saved. Your live page updates within seconds.');
     }
@@ -211,7 +221,7 @@ class SiteManageController extends Controller
 
         return response()->streamDownload(function () use ($site): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Email status', 'Confirmed', 'Phone', 'Phone status', 'Message', 'Source', 'Campaign', 'Device', 'Country', 'IP', 'User agent', 'Free entry (AMOE)']);
+            fputcsv($out, ['Submitted at', 'Name', 'Email', 'Email status', 'Confirmed', 'Phone', 'Phone status', 'Date of birth', 'Message', 'Source', 'Campaign', 'Device', 'Country', 'IP', 'User agent', 'Free entry (AMOE)']);
 
             $site->entries()->oldest()->chunk(500, function ($chunk) use ($out): void {
                 foreach ($chunk as $entry) {
@@ -223,6 +233,7 @@ class SiteManageController extends Controller
                         $entry->confirmed_at ? 'yes' : 'no',
                         $entry->phone,
                         $entry->phone_status,
+                        $entry->extra['dob'] ?? null,
                         $entry->message,
                         $entry->source,
                         $entry->campaign,
