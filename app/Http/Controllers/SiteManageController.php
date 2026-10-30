@@ -12,6 +12,7 @@ use App\Models\SiteMinuteStat;
 use App\Models\SiteStat;
 use App\Sites\Billing;
 use App\Sites\ClickTargets;
+use App\Sites\CopyEdits;
 use App\Sites\HeroArt;
 use App\Sites\Plans;
 use App\Sites\SiteComposer;
@@ -22,6 +23,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -90,7 +92,7 @@ class SiteManageController extends Controller
             'domain' => $site->domain(),
             'og' => [
                 'image' => route('microsite.og', $site->slug).'?v='.substr($site->version(), -8),
-                'title' => $site->content['meta']['title'] ?? ($site->content['hero']['headline'] ?? ''),
+                'title' => $site->content['meta']['title'] ?? ($site->renderedContent()['hero']['headline'] ?? ''),
                 'description' => $site->content['meta']['description'] ?? '',
                 'host' => ($d = $site->domain()) && $d->isActive() ? $d->domain : parse_url($site->url(), PHP_URL_HOST),
             ],
@@ -270,6 +272,98 @@ class SiteManageController extends Controller
         $composer->regenerate($site, [...$validated, ...$checkboxes]);
 
         return back()->with('status', 'Saved. Your live page updates within seconds.');
+    }
+
+    /**
+     * Save one inline copy edit from the draft preview. The path must be on the
+     * CopyEdits allowlist and already rendered by the generated content; the
+     * text is plain, single-line and capped per field. Storing it bumps the
+     * site version, so the cached page is rebuilt and open tabs refresh.
+     */
+    public function updateContent(Request $request, string $slug): JsonResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+        $this->requireDraftJson($request, $site);
+
+        $path = $this->editablePath($request, $site);
+        $limit = (int) CopyEdits::limitFor($path);
+
+        $text = CopyEdits::clean((string) $request->validate([
+            'text' => ['required', 'string', 'max:'.$limit],
+        ])['text']);
+
+        if ($text === '') {
+            return response()->json(['ok' => false, 'message' => 'Type some text, or reset the field to the generated copy.'], 422);
+        }
+
+        $overrides = $site->copyOverrides();
+        $overrides[$path] = $text;
+        $site->update(['content_overrides' => $overrides]);
+
+        return $this->contentResponse($site->refresh(), $path);
+    }
+
+    /**
+     * Drop the owner's override for one path, so the generated text shows again.
+     */
+    public function resetContent(Request $request, string $slug): JsonResponse
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+        $this->requireDraftJson($request, $site);
+
+        $path = $this->editablePath($request, $site);
+
+        $overrides = $site->copyOverrides();
+        unset($overrides[$path]);
+        $site->update(['content_overrides' => $overrides === [] ? null : $overrides]);
+
+        return $this->contentResponse($site->refresh(), $path);
+    }
+
+    /**
+     * Inline edits are a draft-only feature in v1 (the preview bar, and so the
+     * editor, only renders on drafts), so a live site refuses them outright.
+     * And the draft page is cached and served to everyone, so an edit cannot
+     * carry a CSRF token: a JSON body is the stand-in, since a browser only
+     * sends one cross-site after a CORS preflight, which this app never grants.
+     */
+    protected function requireDraftJson(Request $request, Site $site): void
+    {
+        abort_unless($site->isDraft(), 409, 'Copy can be edited on the draft preview only.');
+        abort_unless($request->isJson(), 415, 'Send the edit as JSON.');
+    }
+
+    /**
+     * The validated content path from the request: on the allowlist, and a
+     * string the current generated content actually renders.
+     */
+    protected function editablePath(Request $request, Site $site): string
+    {
+        $path = (string) $request->validate([
+            'path' => ['required', 'string', 'max:60', 'regex:/^[a-z_]+(\.[a-z_0-9]+)*$/'],
+        ])['path'];
+
+        abort_unless(CopyEdits::editable($site->content, $path), 422, 'That part of the page cannot be edited here.');
+
+        return $path;
+    }
+
+    /**
+     * What the page needs to update in place: the text now shown at the path,
+     * whether it is the owner's or the generated text, and the new version so
+     * the page's own refresh poll does not reload over the edit.
+     */
+    protected function contentResponse(Site $site, string $path): JsonResponse
+    {
+        return response()->json([
+            'ok' => true,
+            'path' => $path,
+            'text' => Arr::get($site->renderedContent(), $path),
+            'edited' => array_key_exists($path, $site->copyOverrides()),
+            'version' => $site->version(),
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     /**

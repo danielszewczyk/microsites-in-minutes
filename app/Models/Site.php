@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Sites\CopyEdits;
 use App\Sites\HeroArt;
 use Database\Factories\SiteFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,6 +23,7 @@ use Illuminate\Support\Str;
  * @property string $status
  * @property array<string, mixed> $inputs
  * @property array<string, mixed> $content
+ * @property ?array<string, string> $content_overrides
  * @property array<string, mixed> $settings
  * @property int $view_count
  * @property int $entry_count
@@ -70,6 +72,7 @@ class Site extends Model
         return [
             'inputs' => 'array',
             'content' => 'array',
+            'content_overrides' => 'array',
             'settings' => 'array',
             'published_at' => 'datetime',
             'paid_through' => 'datetime',
@@ -223,7 +226,34 @@ class Site extends Model
         // and bust the HTML cache on every view).
         $assets = $this->exists ? $this->assets()->pluck('updated_at', 'slot')->toJson() : '';
 
-        return substr(md5($this->status.'|'.json_encode($this->content).'|'.json_encode($this->settings).'|'.$assets), 0, 16);
+        return substr(md5(
+            $this->status.'|'.json_encode($this->content).'|'.json_encode($this->copyOverrides()).'|'.json_encode($this->settings).'|'.$assets
+        ), 0, 16);
+    }
+
+    /**
+     * The owner's inline copy edits, path => text. Empty until the first edit.
+     *
+     * @return array<string, string>
+     */
+    public function copyOverrides(): array
+    {
+        $overrides = $this->content_overrides;
+
+        return is_array($overrides) ? array_filter($overrides, 'is_string') : [];
+    }
+
+    /**
+     * The content the page renders: the generated document with the owner's
+     * inline edits laid over it. Every reader of copy that reaches a visitor
+     * (the page, its OG image, the embed) goes through here, so an edit shows
+     * everywhere the generated text would have.
+     *
+     * @return array<string, mixed>
+     */
+    public function renderedContent(): array
+    {
+        return CopyEdits::apply($this->content, $this->copyOverrides());
     }
 
     public function url(): string

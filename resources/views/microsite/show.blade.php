@@ -105,22 +105,24 @@
            it (an inverted radius: everything inside the quarter-circle stays transparent), so
            the content scrolling underneath reads as a rounded panel tucked into the navy and
            is clipped exactly at the bar's edge — not behind an opaque strip below it. */
-        .preview-bar { position: sticky; top: 0; z-index: 10; background: #0b2d4f; color: #fff; padding: 12px 112px; font-size: 0.95rem; text-align: center; }
+        .preview-bar { position: sticky; top: 0; z-index: 10; background: #0b2d4f; color: #fff; padding: 12px 184px; font-size: 0.95rem; text-align: center; }
         .preview-bar::before, .preview-bar::after { content: ""; position: absolute; top: 100%; width: 22px; height: 22px; pointer-events: none; }
         .preview-bar::before { left: 0; background: radial-gradient(circle at 100% 100%, transparent 21.5px, #0b2d4f 22.5px); }
         .preview-bar::after { right: 0; background: radial-gradient(circle at 0% 100%, transparent 21.5px, #0b2d4f 22.5px); }
         .preview-bar strong { position: absolute; left: 24px; top: 14px; font-size: 1.05rem; }
         .preview-toggle, .preview-info { display: none; }
-        /* The owner's way back to the dashboard. Hidden until the page confirms this
-           browser holds the manage cookie, so shared viewers never see it. */
-        .preview-manage { display: none; position: absolute; right: 24px; top: 50%; transform: translateY(-50%); align-items: center; background: #fff; color: #0b2d4f; font-weight: 600; font-size: 0.85rem; line-height: 1; padding: 8px 14px; border-radius: 999px; text-decoration: none; }
+        /* The owner's controls: Edit (inline copy) and the way back to the dashboard.
+           Hidden until the page confirms this browser holds the manage cookie, so
+           shared viewers never see them. */
+        .preview-actions { display: none; position: absolute; right: 24px; top: 50%; transform: translateY(-50%); gap: 8px; }
+        .preview-bar.is-owner .preview-actions { display: inline-flex; }
+        .preview-manage { display: inline-flex; align-items: center; background: #fff; color: #0b2d4f; font-weight: 600; font-size: 0.85rem; line-height: 1; padding: 8px 14px; border-radius: 999px; text-decoration: none; }
         .preview-manage:hover { background: #e6edf5; }
-        .preview-bar.is-owner .preview-manage { display: inline-flex; }
         @media (max-width: 640px) {
             /* Collapse to just "Preview" + an (i) icon; the note expands on tap (pure CSS). */
             .preview-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; padding: 12px 16px; text-align: left; }
             .preview-bar strong { position: static; }
-            .preview-manage { position: static; transform: none; margin-left: auto; }
+            .preview-actions { position: static; transform: none; margin-left: auto; }
             .preview-info { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid rgba(255,255,255,.55); border-radius: 6px; font: italic 700 0.72rem/1 Georgia, serif; color: #fff; cursor: pointer; }
             .preview-note { display: none; flex-basis: 100%; margin-top: 8px; }
             .preview-toggle:checked ~ .preview-note { display: block; }
@@ -128,6 +130,10 @@
     </style>
 </head>
 <body>
+    {{-- Marks a piece of generated copy the owner may retype on the draft preview; the path
+         is its key in the content JSON and must be on the CopyEdits allowlist. Only drafts
+         carry the marks, so a published page has no trace of the editor. --}}
+    @php($edit = fn (string $path): string => $isDraft ? ' data-edit="'.e($path).'"' : '')
     @if ($isDraft)
         <div class="preview-bar" id="preview-bar">
             <strong>Preview</strong>
@@ -137,9 +143,41 @@
                  revealed by the check below, so people the preview was shared with never
                  see a button that would refuse them. On a vanity domain the cookie (set on
                  the app domain) is absent, so the check fails safe and it stays hidden. --}}
-            <a class="preview-manage" href="{{ route('microsite.manage', $site->slug, absolute: false) }}">Manage</a>
-            <span class="preview-note">Not live and not accepting entries. Visible only to people with this link.</span>
+            <span class="preview-actions">
+                <button type="button" class="preview-edit" id="preview-edit" aria-pressed="false">Edit</button>
+                <a class="preview-manage" href="{{ route('microsite.manage', $site->slug, absolute: false) }}">Manage</a>
+            </span>
+            <span class="preview-note" id="preview-note">Not live and not accepting entries. Visible only to people with this link.</span>
         </div>
+        <style>
+            /* Inline copy editing (owner only, drafts only). In Edit mode every piece of
+               generated text is outlined; clicking one splits the page open beneath it:
+               an editor panel grows from zero height and pushes what follows down. */
+            .preview-edit { display: inline-flex; align-items: center; background: #fff; color: #0b2d4f; font-family: inherit; font-weight: 600; font-size: 0.85rem; line-height: 1; padding: 8px 14px; border: 0; border-radius: 999px; cursor: pointer; }
+            .preview-edit:hover { background: #e6edf5; }
+            body.mim-editing .preview-edit { background: #fbbf24; color: #1c1917; }
+            body.mim-editing [data-edit] { cursor: text; outline: 2px dashed rgba(11,45,79,.45); outline-offset: 4px; border-radius: 4px; transition: outline-color .15s, background-color .15s; }
+            body.mim-editing .overlay [data-edit] { outline-color: rgba(255,255,255,.65); }
+            body.mim-editing [data-edit]:hover, body.mim-editing [data-edit].mim-open { outline-style: solid; outline-color: #0b2d4f; background-color: rgba(11,45,79,.06); }
+            body.mim-editing .overlay [data-edit]:hover, body.mim-editing .overlay [data-edit].mim-open { outline-color: #fff; background-color: rgba(255,255,255,.12); }
+            [data-edit].mim-saved { animation: mim-saved 1.2s ease-out; }
+            @keyframes mim-saved { 0% { background-color: rgba(251,191,36,.55); } 100% { background-color: transparent; } }
+            .mim-editor { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .25s ease; }
+            .mim-editor.open { grid-template-rows: 1fr; }
+            .mim-editor > div { overflow: hidden; min-height: 0; }
+            .mim-editor .pane { margin: 12px 0 8px; padding: 14px; max-width: 640px; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid #0b2d4f; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.12); font: 400 1rem/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: normal; text-transform: none; text-align: left; }
+            .mim-editor label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+            .mim-editor textarea { display: block; width: 100%; min-height: 72px; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); resize: vertical; }
+            .mim-editor textarea:focus { outline: 2px solid #0b2d4f; outline-offset: 1px; }
+            .mim-editor .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+            .mim-editor .mim-btn { font-family: inherit; font-weight: 600; font-size: 0.9rem; line-height: 1; padding: 10px 16px; border-radius: 999px; border: 1px solid #0b2d4f; background: #0b2d4f; color: #fff; cursor: pointer; }
+            .mim-editor .mim-btn.alt { background: transparent; color: var(--ink); border-color: var(--line); }
+            .mim-editor .mim-btn.reset { background: transparent; color: #0b2d4f; border-color: transparent; text-decoration: underline; padding-left: 4px; padding-right: 4px; }
+            .mim-editor .mim-btn:disabled { opacity: .55; cursor: default; }
+            .mim-editor .count { margin-left: auto; font-size: 0.8rem; color: var(--muted); }
+            .mim-editor .err { margin: 8px 0 0; font-size: 0.85rem; color: #b91c1c; }
+            @media (prefers-color-scheme: dark) { .mim-editor .pane { border-left-color: #93c5fd; } .mim-editor .mim-btn.reset { color: #93c5fd; } }
+        </style>
         <script>
             fetch({!! json_encode(route('microsite.manage.check', $site->slug, absolute: false), JSON_UNESCAPED_SLASHES) !!}, { credentials: 'same-origin', cache: 'no-store' })
                 .then((r) => { if (r.ok) { document.getElementById('preview-bar').classList.add('is-owner'); } })
@@ -165,13 +203,13 @@
         <div class="wrap hero{{ $showArt ? ' has-art' : '' }}">
             <div>
                 @if (!empty($content['hero']['kicker']))
-                    <p class="kicker">{{ $content['hero']['kicker'] }}</p>
+                    <p class="kicker"{!! $edit('hero.kicker') !!}>{{ $content['hero']['kicker'] }}</p>
                 @endif
-                <h1>{{ $content['hero']['headline'] }}</h1>
-                <p class="subhead">{{ $content['hero']['subhead'] }}</p>
-                <a class="btn" href="#enter"@isset($trackIds['hero_cta']) data-mim-id="{{ $trackIds['hero_cta'] }}"@endisset>{{ $content['cta']['label'] }}</a>
+                <h1{!! $edit('hero.headline') !!}>{{ $content['hero']['headline'] }}</h1>
+                <p class="subhead"{!! $edit('hero.subhead') !!}>{{ $content['hero']['subhead'] }}</p>
+                <a class="btn" href="#enter"@isset($trackIds['hero_cta']) data-mim-id="{{ $trackIds['hero_cta'] }}"@endisset{!! $edit('cta.label') !!}>{{ $content['cta']['label'] }}</a>
                 @if (!empty($content['cta']['note']))
-                    <p class="cta-note">{{ $content['cta']['note'] }}</p>
+                    <p class="cta-note"{!! $edit('cta.note') !!}>{{ $content['cta']['note'] }}</p>
                 @endif
             </div>
             @if ($showArt)
@@ -184,12 +222,12 @@
     <main>
         <section>
             <div class="wrap">
-                <h2>{{ $content['offer']['heading'] }}</h2>
-                <p class="lead">{{ $content['offer']['body'] }}</p>
+                <h2{!! $edit('offer.heading') !!}>{{ $content['offer']['heading'] }}</h2>
+                <p class="lead"{!! $edit('offer.body') !!}>{{ $content['offer']['body'] }}</p>
                 @if (!empty($content['offer']['bullets']))
                     <ul class="bullets">
                         @foreach ($content['offer']['bullets'] as $bullet)
-                            <li>{{ $bullet }}</li>
+                            <li{!! $edit('offer.bullets.'.$loop->index) !!}>{{ $bullet }}</li>
                         @endforeach
                     </ul>
                 @endif
@@ -201,8 +239,8 @@
                 <div class="grid">
                     @foreach ($content['features'] as $feature)
                         <div class="cardbox">
-                            <h3>{{ $feature['title'] }}</h3>
-                            <p>{{ $feature['text'] }}</p>
+                            <h3{!! $edit('features.'.$loop->index.'.title') !!}>{{ $feature['title'] }}</h3>
+                            <p{!! $edit('features.'.$loop->index.'.text') !!}>{{ $feature['text'] }}</p>
                         </div>
                     @endforeach
                 </div>
@@ -213,15 +251,15 @@
             <section class="extra">
                 <div class="wrap">
                     <h2>About</h2>
-                    <p class="lead">{{ $content['about'] }}</p>
+                    <p class="lead"{!! $edit('about') !!}>{{ $content['about'] }}</p>
                 </div>
             </section>
         @endif
 
         <section class="form-section" id="enter">
             <div class="wrap">
-                <h2>{{ $content['form']['heading'] }}</h2>
-                <p class="lead" style="margin-bottom:22px">{{ $content['form']['note'] }}</p>
+                <h2{!! $edit('form.heading') !!}>{{ $content['form']['heading'] }}</h2>
+                <p class="lead" style="margin-bottom:22px"{!! $edit('form.note') !!}>{{ $content['form']['note'] }}</p>
 
                 <div class="msg ok" id="entry-ok" hidden></div>
                 <div class="msg err" id="entry-err" hidden></div>
@@ -302,7 +340,7 @@
                         @endif
                     @endif
                     <div>
-                        <button type="submit" class="btn" id="entry-submit"@isset($trackIds['entry_submit']) data-mim-id="{{ $trackIds['entry_submit'] }}"@endisset>{{ $content['cta']['label'] }}</button>
+                        <button type="submit" class="btn" id="entry-submit"@isset($trackIds['entry_submit']) data-mim-id="{{ $trackIds['entry_submit'] }}"@endisset{!! $edit('cta.label') !!}>{{ $content['cta']['label'] }}</button>
                     </div>
                 </form>
             </div>
@@ -581,6 +619,9 @@
             /* Reload when the owner regenerates the page elsewhere. The same poll
                carries a per-tab id so the dashboard can show "viewing now". */
             let current = data.version;
+            // An inline copy edit saved on this page already shows; take its new
+            // version so the poll below does not reload over the owner's work.
+            document.addEventListener('mim:version', (event) => { if (event.detail) { current = event.detail; } });
             const vid = Math.random().toString(36).slice(2, 12);
             const beat = async () => {
                 if (document.hidden) { return; }
@@ -636,6 +677,160 @@
             @endif
         })();
     </script>
+
+    @if ($isDraft)
+        {{-- Inline copy editing. Owner only: the controls appear when the ownership check
+             above succeeds, and every save goes through the cookie-authorised endpoint,
+             which also checks the path against the server's allowlist. No token in the page. --}}
+        @php($editorConfig = [
+            'update' => route('microsite.content.update', $site->slug, absolute: false),
+            'reset' => route('microsite.content.reset', $site->slug, absolute: false),
+            'edited' => array_keys($site->copyOverrides()),
+            'fields' => \App\Sites\CopyEdits::FIELDS,
+        ])
+        <script>
+            (() => {
+                const cfg = @json($editorConfig, JSON_UNESCAPED_SLASHES);
+                const $ = (id) => document.getElementById(id);
+                const bar = $('preview-bar'), toggle = $('preview-edit'), note = $('preview-note');
+                const noteText = note.textContent;
+                const edited = new Set(cfg.edited);
+                let editing = false;
+                let open = null; /* { el, box, path } — the one panel open right now */
+
+                const fieldFor = (path) => {
+                    for (const [pattern, field] of Object.entries(cfg.fields)) {
+                        if (new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '\\d+') + '$').test(path)) { return field; }
+                    }
+                    return { label: 'Text', max: 200 };
+                };
+                const all = (path) => document.querySelectorAll('[data-edit="' + path + '"]');
+
+                const close = () => {
+                    if (!open) { return; }
+                    const { el, box } = open;
+                    open = null;
+                    el.classList.remove('mim-open');
+                    box.classList.remove('open');
+                    box.addEventListener('transitionend', () => box.remove(), { once: true });
+                    setTimeout(() => box.remove(), 400);
+                };
+
+                const send = async (method, path, text) => {
+                    const res = await fetch(method === 'PATCH' ? cfg.update : cfg.reset, {
+                        method,
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify(method === 'PATCH' ? { path, text } : { path }),
+                    });
+                    const body = await res.json().catch(() => ({}));
+                    if (!res.ok || !body.ok) {
+                        const first = body.errors ? Object.values(body.errors)[0][0] : body.message;
+                        throw new Error(first || 'Could not save. Please try again.');
+                    }
+                    return body;
+                };
+
+                /* Put the saved (or restored) text into every element showing that
+                   path — the button label appears twice — and tell the version poll. */
+                const show = (body) => {
+                    all(body.path).forEach((node) => {
+                        node.textContent = body.text;
+                        node.classList.remove('mim-saved');
+                        void node.offsetWidth;
+                        node.classList.add('mim-saved');
+                    });
+                    if (body.edited) { edited.add(body.path); } else { edited.delete(body.path); }
+                    document.dispatchEvent(new CustomEvent('mim:version', { detail: body.version }));
+                };
+
+                const openFor = (el) => {
+                    close();
+                    const path = el.dataset.edit;
+                    const field = fieldFor(path);
+                    const box = document.createElement('div');
+                    box.className = 'mim-editor';
+                    box.innerHTML = '<div><div class="pane" role="group">'
+                        + '<label></label><textarea rows="2"></textarea>'
+                        + '<div class="row"><button type="button" class="mim-btn save">Save</button>'
+                        + '<button type="button" class="mim-btn alt cancel">Cancel</button>'
+                        + '<button type="button" class="mim-btn reset" hidden>Reset to generated</button>'
+                        + '<span class="count"></span></div><p class="err" hidden></p></div></div>';
+                    const label = box.querySelector('label'), area = box.querySelector('textarea');
+                    const save = box.querySelector('.save'), cancel = box.querySelector('.cancel'), reset = box.querySelector('.reset');
+                    const count = box.querySelector('.count'), err = box.querySelector('.err');
+                    label.textContent = field.label;
+                    area.maxLength = field.max;
+                    /* The element's own text only: a list item may still hold a panel that is closing. */
+                    area.value = Array.from(el.childNodes).filter((n) => !(n.nodeType === 1 && n.classList.contains('mim-editor'))).map((n) => n.textContent).join('').trim();
+                    reset.hidden = !edited.has(path);
+                    const tally = () => { count.textContent = area.value.length + ' / ' + field.max; };
+                    area.addEventListener('input', tally);
+                    tally();
+
+                    let inFlight = false; /* one request per panel at a time, whatever fires the second click */
+                    const busy = (on) => { inFlight = on; [save, cancel, reset].forEach((b) => { b.disabled = on; }); };
+                    const fail = (e) => { err.textContent = e.message; err.hidden = false; busy(false); area.focus(); };
+                    const commit = () => {
+                        if (inFlight) { return; }
+                        err.hidden = true;
+                        const text = area.value.trim();
+                        if (text === '') { fail(new Error('Type some text, or reset the field to the generated copy.')); return; }
+                        busy(true);
+                        send('PATCH', path, text).then((body) => { show(body); close(); }).catch(fail);
+                    };
+                    save.addEventListener('click', commit);
+                    cancel.addEventListener('click', close);
+                    reset.addEventListener('click', () => {
+                        if (inFlight) { return; }
+                        err.hidden = true; busy(true);
+                        send('DELETE', path).then((body) => { show(body); close(); }).catch(fail);
+                    });
+                    area.addEventListener('keydown', (event) => {
+                        if (event.key === 'Escape') { event.preventDefault(); close(); }
+                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); commit(); }
+                    });
+
+                    /* A list item keeps its panel inside itself; everything else gets it
+                       as the next sibling, so the panel pushes the following content down. */
+                    if (el.tagName === 'LI') { el.appendChild(box); } else { el.insertAdjacentElement('afterend', box); }
+                    el.classList.add('mim-open');
+                    open = { el, box, path };
+                    requestAnimationFrame(() => box.classList.add('open'));
+                    area.focus();
+                    area.setSelectionRange(area.value.length, area.value.length);
+                };
+
+                toggle.addEventListener('click', () => {
+                    editing = !editing;
+                    document.body.classList.toggle('mim-editing', editing);
+                    toggle.textContent = editing ? 'Done' : 'Edit';
+                    toggle.setAttribute('aria-pressed', editing ? 'true' : 'false');
+                    note.textContent = editing ? 'Click any text to change it. Esc cancels an edit.' : noteText;
+                    if (!editing) { close(); }
+                });
+
+                /* In Edit mode a click on marked text opens its panel instead of doing
+                   what the element does (the CTA is a link, the submit a button). On the
+                   window in the capture phase so it runs before the page's own handlers. */
+                window.addEventListener('click', (event) => {
+                    if (!editing || !event.target.closest) { return; }
+                    if (event.target.closest('.mim-editor')) { return; }
+                    const el = event.target.closest('[data-edit]');
+                    if (!el) { return; }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (open && open.el === el) { return; }
+                    openFor(el);
+                }, true);
+
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape' && open) { close(); }
+                });
+            })();
+        </script>
+    @endif
 
     @if ($site->requiresEmailCode() && $turnstileSiteKey)
         {{-- Cloudflare Turnstile: the one extra external script a page may load, and only when the email-code add-on and keys are set. --}}
