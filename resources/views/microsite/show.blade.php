@@ -105,16 +105,22 @@
            it (an inverted radius: everything inside the quarter-circle stays transparent), so
            the content scrolling underneath reads as a rounded panel tucked into the navy and
            is clipped exactly at the bar's edge — not behind an opaque strip below it. */
-        .preview-bar { position: sticky; top: 0; z-index: 10; background: #0b2d4f; color: #fff; padding: 12px 24px; font-size: 0.95rem; text-align: center; }
+        .preview-bar { position: sticky; top: 0; z-index: 10; background: #0b2d4f; color: #fff; padding: 12px 112px; font-size: 0.95rem; text-align: center; }
         .preview-bar::before, .preview-bar::after { content: ""; position: absolute; top: 100%; width: 22px; height: 22px; pointer-events: none; }
         .preview-bar::before { left: 0; background: radial-gradient(circle at 100% 100%, transparent 21.5px, #0b2d4f 22.5px); }
         .preview-bar::after { right: 0; background: radial-gradient(circle at 0% 100%, transparent 21.5px, #0b2d4f 22.5px); }
         .preview-bar strong { position: absolute; left: 24px; top: 14px; font-size: 1.05rem; }
         .preview-toggle, .preview-info { display: none; }
+        /* The owner's way back to the dashboard. Hidden until the page confirms this
+           browser holds the manage cookie, so shared viewers never see it. */
+        .preview-manage { display: none; position: absolute; right: 24px; top: 50%; transform: translateY(-50%); align-items: center; background: #fff; color: #0b2d4f; font-weight: 600; font-size: 0.85rem; line-height: 1; padding: 8px 14px; border-radius: 999px; text-decoration: none; }
+        .preview-manage:hover { background: #e6edf5; }
+        .preview-bar.is-owner .preview-manage { display: inline-flex; }
         @media (max-width: 640px) {
             /* Collapse to just "Preview" + an (i) icon; the note expands on tap (pure CSS). */
-            .preview-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; text-align: left; }
+            .preview-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; padding: 12px 16px; text-align: left; }
             .preview-bar strong { position: static; }
+            .preview-manage { position: static; transform: none; margin-left: auto; }
             .preview-info { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid rgba(255,255,255,.55); border-radius: 6px; font: italic 700 0.72rem/1 Georgia, serif; color: #fff; cursor: pointer; }
             .preview-note { display: none; flex-basis: 100%; margin-top: 8px; }
             .preview-toggle:checked ~ .preview-note { display: block; }
@@ -123,12 +129,22 @@
 </head>
 <body>
     @if ($isDraft)
-        <div class="preview-bar">
+        <div class="preview-bar" id="preview-bar">
             <strong>Preview</strong>
             <input type="checkbox" id="preview-toggle" class="preview-toggle">
             <label for="preview-toggle" class="preview-info" role="button" aria-label="Show preview details">i</label>
+            {{-- No token in the page: the owner's manage cookie authorises this link. It is
+                 revealed by the check below, so people the preview was shared with never
+                 see a button that would refuse them. On a vanity domain the cookie (set on
+                 the app domain) is absent, so the check fails safe and it stays hidden. --}}
+            <a class="preview-manage" href="{{ route('microsite.manage', $site->slug, absolute: false) }}">Manage</a>
             <span class="preview-note">Not live and not accepting entries. Visible only to people with this link.</span>
         </div>
+        <script>
+            fetch({!! json_encode(route('microsite.manage.check', $site->slug, absolute: false), JSON_UNESCAPED_SLASHES) !!}, { credentials: 'same-origin', cache: 'no-store' })
+                .then((r) => { if (r.ok) { document.getElementById('preview-bar').classList.add('is-owner'); } })
+                .catch(() => {});
+        </script>
     @endif
     @php($hasBanner = $banners['desktop'] || $banners['mobile'])
     @php($overlay = $hasBanner && $site->heroOverlay())

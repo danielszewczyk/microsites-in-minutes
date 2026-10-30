@@ -21,6 +21,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -40,6 +41,19 @@ class SiteManageController extends Controller
 
     /** The chart ranges the dashboard offers, each mapping to an analytics tier. */
     public const array RANGES = ['hour', 'day', 'week', 'month', 'year', 'all'];
+
+    /**
+     * Does this browser hold a valid manage token for the site? Never cached:
+     * the draft page is served from cache to everyone, so it asks this to
+     * decide whether to show the owner's Manage link.
+     */
+    public function check(Request $request, string $slug): Response
+    {
+        $site = Site::query()->where('slug', $slug)->firstOrFail();
+        $this->authorizeManage($request, $site);
+
+        return response()->noContent()->header('Cache-Control', 'no-store, private');
+    }
 
     public function manage(Request $request, string $slug): RedirectResponse|View
     {

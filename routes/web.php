@@ -145,6 +145,8 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
      * The owner's dashboard: control proven by the manage token, not a login.
      */
     Route::get('/manage', [SiteManageController::class, 'manage'])->name('microsite.manage');
+    Route::get('/manage/check', [SiteManageController::class, 'check'])
+        ->middleware('throttle:120,1,microsite-manage-check')->name('microsite.manage.check');
     Route::post('/manage/publish', [SiteManageController::class, 'publish'])
         ->middleware('throttle:20,1,microsite-publish')->name('microsite.publish');
     Route::post('/manage/regenerate', [SiteManageController::class, 'regenerate'])
