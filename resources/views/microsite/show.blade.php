@@ -96,18 +96,36 @@
         .qr svg { display: block; width: 150px; height: 150px; margin: 0 auto; }
         .qr .close { position: absolute; top: 6px; right: 8px; border: 0; background: none; font-size: 1.2rem; line-height: 1; color: #57534e; cursor: pointer; }
         @media (max-width: 820px) { .qr { display: none; } }
+        /* Draft notice, styled like Stripe's sandbox banner: full-bleed bar with a dark
+           shoulder below the text, label pinned left, note centred. The content below
+           tucks up into the shoulder with rounded top corners. */
+        .preview-bar { position: relative; z-index: 1; background: #0b2d4f; color: #fff; padding: 12px 24px 32px; font-size: 0.95rem; text-align: center; }
+        .preview-bar strong { position: absolute; left: 24px; top: 14px; font-size: 1.05rem; }
+        .preview-toggle, .preview-info { display: none; }
+        /* Paper content pulled up into the bar's navy shoulder, so its rounded top sits on navy. */
+        .under-preview { position: relative; z-index: 2; margin-top: -22px; border-radius: 22px 22px 0 0; overflow: hidden; background: var(--paper); }
+        @media (max-width: 640px) {
+            /* Collapse to just "Preview" + an (i) icon; the note expands on tap (pure CSS). */
+            .preview-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; text-align: left; }
+            .preview-bar strong { position: static; }
+            .preview-info { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid rgba(255,255,255,.55); border-radius: 6px; font: italic 700 0.72rem/1 Georgia, serif; color: #fff; cursor: pointer; }
+            .preview-note { display: none; flex-basis: 100%; margin-top: 8px; }
+            .preview-toggle:checked ~ .preview-note { display: block; }
+        }
     </style>
 </head>
 <body>
     @if ($isDraft)
-        <div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:#0b2d4f;color:#fff;padding:12px 16px;font-size:0.95rem">
-            <strong style="font-size:1.05rem">Draft preview</strong>
-            <span>Not live and not accepting entries. Visible only to people with this link.</span>
+        <div class="preview-bar">
+            <strong>Preview</strong>
+            <input type="checkbox" id="preview-toggle" class="preview-toggle">
+            <label for="preview-toggle" class="preview-info" role="button" aria-label="Show preview details">i</label>
+            <span class="preview-note">Not live and not accepting entries. Visible only to people with this link.</span>
         </div>
     @endif
     @php($hasBanner = $banners['desktop'] || $banners['mobile'])
     @php($overlay = $hasBanner && $site->heroOverlay())
-    <div class="hero-stack{{ $overlay ? ' overlay' : '' }}">
+    <div class="hero-stack{{ $overlay ? ' overlay' : '' }}{{ $isDraft ? ' under-preview' : '' }}">
     @if ($hasBanner)
         <div class="banner">
             <picture>

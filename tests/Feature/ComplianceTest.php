@@ -18,7 +18,8 @@ class ComplianceTest extends TestCase
         $this->get($site->url())
             ->assertOk()
             ->assertSee('noindex, nofollow', false)
-            ->assertSee('Draft preview');
+            ->assertSee('Preview')
+            ->assertSee('Not live and not accepting entries');
 
         $this->postJson($site->url().'/enter', ['name' => 'Jamie', 'email' => 'jamie@example.com'])
             ->assertStatus(422)
