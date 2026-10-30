@@ -101,11 +101,14 @@
         .qr .close { position: absolute; top: 6px; right: 8px; border: 0; background: none; font-size: 1.2rem; line-height: 1; color: #57534e; cursor: pointer; }
         @media (max-width: 820px) { .qr { display: none; } }
         /* Draft notice, styled like Stripe's sandbox banner: a navy bar pinned to the top
-           of the viewport, label left, note centred. Its bottom edge carries a paper "lip"
-           with rounded top corners, so the content scrolling underneath always reads as a
-           rounded panel tucked into the navy — the rounding never scrolls away. */
-        .preview-bar { position: sticky; top: 0; z-index: 10; background: #0b2d4f; color: #fff; padding: 12px 24px 32px; font-size: 0.95rem; text-align: center; }
-        .preview-bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 22px; background: var(--paper); border-radius: 22px 22px 0 0; }
+           of the viewport, label left, note centred. Two navy corner notches hang just below
+           it (an inverted radius: everything inside the quarter-circle stays transparent), so
+           the content scrolling underneath reads as a rounded panel tucked into the navy and
+           is clipped exactly at the bar's edge — not behind an opaque strip below it. */
+        .preview-bar { position: sticky; top: 0; z-index: 10; background: #0b2d4f; color: #fff; padding: 12px 24px; font-size: 0.95rem; text-align: center; }
+        .preview-bar::before, .preview-bar::after { content: ""; position: absolute; top: 100%; width: 22px; height: 22px; pointer-events: none; }
+        .preview-bar::before { left: 0; background: radial-gradient(circle at 100% 100%, transparent 21.5px, #0b2d4f 22.5px); }
+        .preview-bar::after { right: 0; background: radial-gradient(circle at 0% 100%, transparent 21.5px, #0b2d4f 22.5px); }
         .preview-bar strong { position: absolute; left: 24px; top: 14px; font-size: 1.05rem; }
         .preview-toggle, .preview-info { display: none; }
         @media (max-width: 640px) {
