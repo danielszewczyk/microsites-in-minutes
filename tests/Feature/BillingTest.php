@@ -65,6 +65,25 @@ class BillingTest extends TestCase
         $this->assertEqualsWithDelta(now()->addMonths(2)->timestamp, $site->refresh()->paid_through->timestamp, 5);
     }
 
+    public function test_a_duplicate_subscription_checkout_does_not_credit_or_overwrite(): void
+    {
+        $site = Site::factory()->create(['paid_through' => null]);
+        $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => 'sub_first']]);
+
+        // A second, racing Subscribe session completes with a different sub id.
+        app(Billing::class)->handleCheckoutCompleted([
+            'id' => 'cs_dup',
+            'mode' => 'subscription',
+            'payment_status' => 'paid',
+            'subscription' => 'sub_second',
+            'metadata' => ['site_id' => (string) $site->id, 'kind' => 'monthly'],
+        ]);
+
+        $site->refresh();
+        $this->assertSame('sub_first', $site->settings['stripe_subscription_id']);
+        $this->assertNull($site->paid_through);
+    }
+
     public function test_a_lapsed_site_is_paused_and_takes_no_entries_when_the_paywall_is_on(): void
     {
         config(['plans.paywall' => true]);

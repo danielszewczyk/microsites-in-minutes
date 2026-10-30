@@ -6,6 +6,7 @@ use App\Models\Owner;
 use App\Models\Site;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
@@ -129,12 +130,32 @@ class Billing
             return;
         }
 
+        // Already applied (a redelivery): skip before any Stripe call or credit.
+        if (DB::table('payments')->where('reference', 'cs:'.$session['id'])->exists()) {
+            return;
+        }
+
         $owner = $site->owner;
 
         if (($session['mode'] ?? null) === 'subscription') {
-            $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $session): void {
+            $incoming = $session['subscription'] ?? null;
+            $existing = $site->settings['stripe_subscription_id'] ?? null;
+
+            // A race (two open Subscribe tabs) can create a second subscription.
+            // Keep the first, cancel the duplicate so it stops billing, and do
+            // not credit or overwrite from it.
+            if (! empty($existing) && ! empty($incoming) && $existing !== $incoming) {
+                $this->cancelSubscriptionQuietly($incoming);
+                Log::warning('Cancelled a duplicate subscription for a site', [
+                    'site_id' => $site->id, 'kept' => $existing, 'cancelled' => $incoming,
+                ]);
+
+                return;
+            }
+
+            $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $incoming): void {
                 $this->addMonths($site, 1);
-                $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => $session['subscription'] ?? null]]);
+                $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => $incoming]]);
             });
 
             return;
@@ -201,10 +222,34 @@ class Billing
      */
     public function handleSubscriptionDeleted(array $subscription): void
     {
-        $site = Site::query()->where('settings->stripe_subscription_id', $subscription['id'] ?? null)->first();
+        $subscriptionId = $subscription['id'] ?? null;
 
-        if ($site !== null) {
-            $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => null]]);
+        if (empty($subscriptionId)) {
+            return;
+        }
+
+        DB::transaction(function () use ($subscriptionId): void {
+            $site = Site::query()->where('settings->stripe_subscription_id', $subscriptionId)->lockForUpdate()->first();
+
+            if ($site !== null) {
+                $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => null]]);
+            }
+        });
+    }
+
+    /**
+     * Cancel a subscription, ignoring a Stripe error (already gone / unreachable).
+     */
+    protected function cancelSubscriptionQuietly(string $subscriptionId): void
+    {
+        if (! config('services.stripe.enabled')) {
+            return;
+        }
+
+        try {
+            $this->client()->subscriptions->cancel($subscriptionId);
+        } catch (ApiErrorException) {
+            // The caller logs the duplicate; nothing more to do here.
         }
     }
 
@@ -215,6 +260,11 @@ class Billing
     protected function recordPayment(Site $site, string $reference, callable $apply): bool
     {
         return DB::transaction(function () use ($site, $reference, $apply): bool {
+            // Take the site row lock FIRST — before the payments insert, whose
+            // FK also locks the site — so concurrent webhooks for this site
+            // acquire locks in the same order and cannot deadlock on Postgres.
+            Site::query()->whereKey($site->id)->lockForUpdate()->first();
+
             // INSERT ... ON CONFLICT DO NOTHING: a redelivered or concurrent
             // webhook that re-uses the reference inserts nothing and is skipped.
             // insertOrIgnore (vs catching a unique violation) does not abort the
@@ -230,9 +280,7 @@ class Billing
                 return false;
             }
 
-            // Serialise concurrent credits for this site and read its current
-            // paid-through under the lock before the paid-time math runs.
-            Site::query()->whereKey($site->id)->lockForUpdate()->first();
+            // Read the current paid-through under the lock before the math runs.
             $site->refresh();
 
             $apply();
