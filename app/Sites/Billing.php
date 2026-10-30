@@ -5,6 +5,7 @@ namespace App\Sites;
 use App\Models\Owner;
 use App\Models\Site;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
@@ -16,9 +17,6 @@ use Stripe\StripeClient;
  */
 class Billing
 {
-    /** How many payment references a site remembers, so a redelivered webhook cannot pay twice. */
-    private const int MAX_REFERENCES = 50;
-
     protected ?StripeClient $stripe = null;
 
     /**
@@ -144,12 +142,19 @@ class Billing
 
         $intentId = $session['payment_intent'] ?? null;
 
-        $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $owner, $intentId): void {
+        // Fetch the saved card id BEFORE recordPayment: no Stripe network call
+        // belongs inside its DB transaction. If this throws, the webhook 500s
+        // and Stripe retries — nothing was credited yet, so the retry credits
+        // exactly once.
+        $paymentMethod = $intentId !== null
+            ? $this->client()->paymentIntents->retrieve($intentId)->payment_method
+            : null;
+
+        $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $owner, $paymentMethod): void {
             $this->addDays($site, config('plans.day_pass.days'));
 
-            if ($intentId !== null) {
-                $intent = $this->client()->paymentIntents->retrieve($intentId);
-                $owner->update(['stripe_payment_method_id' => $intent->payment_method]);
+            if ($paymentMethod !== null && $owner !== null) {
+                $owner->update(['stripe_payment_method_id' => $paymentMethod]);
             }
         });
     }
@@ -209,20 +214,31 @@ class Billing
      */
     protected function recordPayment(Site $site, string $reference, callable $apply): bool
     {
-        $seen = $site->settings['payment_refs'] ?? [];
+        return DB::transaction(function () use ($site, $reference, $apply): bool {
+            // INSERT ... ON CONFLICT DO NOTHING: a redelivered or concurrent
+            // webhook that re-uses the reference inserts nothing and is skipped.
+            // insertOrIgnore (vs catching a unique violation) does not abort the
+            // surrounding transaction on Postgres.
+            $inserted = DB::table('payments')->insertOrIgnore([
+                'site_id' => $site->id,
+                'reference' => $reference,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        if (in_array($reference, $seen, true)) {
-            return false;
-        }
+            if ($inserted === 0) {
+                return false;
+            }
 
-        $apply();
+            // Serialise concurrent credits for this site and read its current
+            // paid-through under the lock before the paid-time math runs.
+            Site::query()->whereKey($site->id)->lockForUpdate()->first();
+            $site->refresh();
 
-        $site->refresh();
-        $site->update([
-            'settings' => [...$site->settings, 'payment_refs' => array_slice([...$seen, $reference], -self::MAX_REFERENCES)],
-        ]);
+            $apply();
 
-        return true;
+            return true;
+        });
     }
 
     /**

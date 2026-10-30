@@ -133,6 +133,31 @@ class BillingTest extends TestCase
         $this->assertNull($site->refresh()->paid_through);
     }
 
+    public function test_a_new_site_starts_as_a_draft_when_the_paywall_is_on(): void
+    {
+        config(['plans.paywall' => true]);
+        $owner = Owner::factory()->create();
+
+        $this->actingAs($owner)->post('/sites', [
+            'business_name' => 'Paywalled Co',
+            'prompt' => 'A promo page for a shop that wants more customers.',
+            'type' => 'standard',
+        ]);
+
+        $this->assertSame(Site::STATUS_DRAFT, Site::query()->firstOrFail()->status);
+    }
+
+    public function test_a_second_monthly_checkout_is_blocked(): void
+    {
+        config(['services.stripe.enabled' => true]);
+        $site = Site::factory()->withToken('tok')->create();
+        $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => 'sub_existing']]);
+
+        $this->withCookie($site->cookieName(), 'tok')
+            ->post(route('microsite.billing.checkout', [$site->slug, 'monthly']))
+            ->assertSessionHas('error', 'This site already has a monthly subscription.');
+    }
+
     public function test_extend_with_the_saved_card_is_off_when_stripe_is_disabled(): void
     {
         config(['services.stripe.enabled' => false]);

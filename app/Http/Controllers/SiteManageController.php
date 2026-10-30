@@ -22,8 +22,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Stripe\Exception\ApiErrorException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -124,11 +126,23 @@ class SiteManageController extends Controller
             return back()->with('error', 'Sign in to your account to pay for this site.');
         }
 
+        // One subscription per site: a second monthly checkout would start a
+        // second Stripe subscription that bills forever with no site to credit.
+        if ($plan === 'monthly' && ! empty($site->settings['stripe_subscription_id'])) {
+            return back()->with('error', 'This site already has a monthly subscription.');
+        }
+
         $returnUrl = route('microsite.manage', $site->slug);
 
-        $url = $plan === 'monthly'
-            ? $billing->monthlyCheckoutUrl($site, $owner, $returnUrl)
-            : $billing->dayPassCheckoutUrl($site, $owner, $returnUrl);
+        try {
+            $url = $plan === 'monthly'
+                ? $billing->monthlyCheckoutUrl($site, $owner, $returnUrl)
+                : $billing->dayPassCheckoutUrl($site, $owner, $returnUrl);
+        } catch (ApiErrorException $e) {
+            Log::error('Stripe checkout failed', ['site_id' => $site->id, 'plan' => $plan, 'message' => $e->getMessage()]);
+
+            return back()->with('error', 'We could not reach our payment provider. Please try again in a moment.');
+        }
 
         return redirect()->away($url);
     }
@@ -143,8 +157,14 @@ class SiteManageController extends Controller
 
         $owner = $site->owner;
 
-        if ($owner !== null && $billing->extendWithSavedCard($site, $owner)) {
-            return back()->with('status', 'Extended by one day.');
+        try {
+            if ($owner !== null && $billing->extendWithSavedCard($site, $owner)) {
+                return back()->with('status', 'Extended by one day.');
+            }
+        } catch (\Throwable $e) {
+            // A Stripe failure is already swallowed inside extendWithSavedCard;
+            // this guards a DB write that fails after the charge succeeded.
+            Log::error('Stripe extend failed', ['site_id' => $site->id, 'message' => $e->getMessage()]);
         }
 
         return back()->with('error', 'Your saved card needs confirming. Use Pay $1 for a day instead.');
