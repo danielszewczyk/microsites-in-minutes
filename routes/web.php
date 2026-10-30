@@ -157,6 +157,9 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
     Route::post('/manage/billing/extend', [SiteManageController::class, 'extend'])
         ->middleware('throttle:20,1,microsite-billing')
         ->name('microsite.billing.extend');
+    Route::post('/manage/billing/portal', [SiteManageController::class, 'billingPortal'])
+        ->middleware('throttle:20,1,microsite-billing')
+        ->name('microsite.billing.portal');
     Route::get('/manage/entries.csv', [SiteManageController::class, 'exportEntries'])->name('microsite.entries.export');
     Route::get('/manage/stats.json', [SiteManageController::class, 'stats'])
         ->middleware('throttle:120,1,manage-stats')->name('microsite.stats');

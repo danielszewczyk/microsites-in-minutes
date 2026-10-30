@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Owner;
 use App\Models\Site;
 use App\Sites\Billing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,6 +65,25 @@ class BillingTest extends TestCase
         $this->assertEqualsWithDelta(now()->addMonths(2)->timestamp, $site->refresh()->paid_through->timestamp, 5);
     }
 
+    public function test_a_duplicate_subscription_checkout_does_not_credit_or_overwrite(): void
+    {
+        $site = Site::factory()->create(['paid_through' => null]);
+        $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => 'sub_first']]);
+
+        // A second, racing Subscribe session completes with a different sub id.
+        app(Billing::class)->handleCheckoutCompleted([
+            'id' => 'cs_dup',
+            'mode' => 'subscription',
+            'payment_status' => 'paid',
+            'subscription' => 'sub_second',
+            'metadata' => ['site_id' => (string) $site->id, 'kind' => 'monthly'],
+        ]);
+
+        $site->refresh();
+        $this->assertSame('sub_first', $site->settings['stripe_subscription_id']);
+        $this->assertNull($site->paid_through);
+    }
+
     public function test_a_lapsed_site_is_paused_and_takes_no_entries_when_the_paywall_is_on(): void
     {
         config(['plans.paywall' => true]);
@@ -107,6 +127,77 @@ class BillingTest extends TestCase
             ->assertSessionHas('error', 'Keep it live for $1 a day to publish.');
 
         $this->assertTrue($site->refresh()->isDraft());
+    }
+
+    public function test_an_invoice_with_no_subscription_credits_no_one(): void
+    {
+        // A null subscription id must not become IS NULL and match every
+        // subscription-less site (which would hand out a free month).
+        $site = Site::factory()->create(['paid_through' => null]);
+
+        app(Billing::class)->handleInvoicePaid(['id' => 'in_null', 'billing_reason' => 'subscription_cycle', 'subscription' => null]);
+
+        $this->assertNull($site->refresh()->paid_through);
+    }
+
+    public function test_only_a_renewal_cycle_invoice_adds_a_month(): void
+    {
+        $site = Site::factory()->create(['paid_through' => null]);
+        $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => 'sub_x']]);
+
+        foreach (['subscription_update', 'manual', 'subscription_threshold'] as $reason) {
+            app(Billing::class)->handleInvoicePaid(['id' => 'in_'.$reason, 'billing_reason' => $reason, 'subscription' => 'sub_x']);
+        }
+
+        $this->assertNull($site->refresh()->paid_through);
+    }
+
+    public function test_a_new_site_starts_as_a_draft_when_the_paywall_is_on(): void
+    {
+        config(['plans.paywall' => true]);
+        $owner = Owner::factory()->create();
+
+        $this->actingAs($owner)->post('/sites', [
+            'business_name' => 'Paywalled Co',
+            'prompt' => 'A promo page for a shop that wants more customers.',
+            'type' => 'standard',
+        ]);
+
+        $this->assertSame(Site::STATUS_DRAFT, Site::query()->firstOrFail()->status);
+    }
+
+    public function test_a_second_monthly_checkout_is_blocked(): void
+    {
+        config(['services.stripe.enabled' => true]);
+        $site = Site::factory()->withToken('tok')->create();
+        $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => 'sub_existing']]);
+
+        $this->withCookie($site->cookieName(), 'tok')
+            ->post(route('microsite.billing.checkout', [$site->slug, 'monthly']))
+            ->assertSessionHas('error', 'This site already has a monthly subscription.');
+    }
+
+    public function test_the_billing_portal_needs_a_stripe_customer(): void
+    {
+        config(['services.stripe.enabled' => true]);
+        $site = Site::factory()->withToken('tok')->create();
+
+        $this->withCookie($site->cookieName(), 'tok')
+            ->post(route('microsite.billing.portal', $site->slug))
+            ->assertSessionHas('error', 'There is no billing account to manage yet.');
+    }
+
+    public function test_extend_with_the_saved_card_is_off_when_stripe_is_disabled(): void
+    {
+        config(['services.stripe.enabled' => false]);
+        $owner = Owner::factory()->create([
+            'stripe_customer_id' => 'cus_1',
+            'stripe_payment_method_id' => 'pm_1',
+        ]);
+        $site = Site::factory()->for($owner)->create();
+
+        // The kill switch returns false before any Stripe call, so no charge.
+        $this->assertFalse(app(Billing::class)->extendWithSavedCard($site, $owner));
     }
 
     /**

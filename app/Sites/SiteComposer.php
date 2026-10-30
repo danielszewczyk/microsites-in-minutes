@@ -51,7 +51,10 @@ class SiteComposer
             'slug' => $this->freeSlug($inputs['business_name']),
             'manage_token_hash' => hash('sha256', $token),
             'type' => $inputs['type'],
-            'status' => ($input['status'] ?? Site::STATUS_PUBLISHED) === Site::STATUS_DRAFT
+            // With the paywall on, a new site starts as a draft so it must be
+            // paid for to go live; otherwise it publishes immediately (or as
+            // explicitly requested).
+            'status' => (config('plans.paywall') || ($input['status'] ?? null) === Site::STATUS_DRAFT)
                 ? Site::STATUS_DRAFT
                 : Site::STATUS_PUBLISHED,
             'inputs' => $inputs,
@@ -88,11 +91,19 @@ class SiteComposer
         $site = DB::transaction(function () use ($site, $inputs): Site {
             $site = Site::query()->lockForUpdate()->findOrFail($site->id);
 
+            $settings = $this->settings($inputs, $site->owner);
+
+            // Preserve the subscription link, which lives in settings but is not
+            // a user input, so saving an edit never detaches a subscription.
+            if (array_key_exists('stripe_subscription_id', $site->settings)) {
+                $settings['stripe_subscription_id'] = $site->settings['stripe_subscription_id'];
+            }
+
             $site->update([
                 'type' => $inputs['type'],
                 'inputs' => $inputs,
                 'content' => $this->compose($inputs, $site->trackIds()),
-                'settings' => $this->settings($inputs, $site->owner),
+                'settings' => $settings,
             ]);
 
             return $site;

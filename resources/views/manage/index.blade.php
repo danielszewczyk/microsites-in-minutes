@@ -147,7 +147,11 @@
                 @if ($site->owner?->stripe_payment_method_id)
                     <form method="post" action="{{ route('microsite.billing.extend', $site->slug) }}" style="display:inline">@csrf<button class="btn" type="submit">Extend 1 day ($1, saved card)</button></form>
                 @endif
-                <form method="post" action="{{ route('microsite.billing.checkout', [$site->slug, 'monthly']) }}" style="display:inline">@csrf<button class="btn" type="submit">Subscribe $25/month</button></form>
+                @if (empty($site->settings['stripe_subscription_id']))
+                    <form method="post" action="{{ route('microsite.billing.checkout', [$site->slug, 'monthly']) }}" style="display:inline">@csrf<button class="btn" type="submit">Subscribe $25/month</button></form>
+                @else
+                    <form method="post" action="{{ route('microsite.billing.portal', $site->slug) }}" style="display:inline">@csrf<button class="btn" type="submit">Manage billing</button></form>
+                @endif
             </div>
         @endif
 

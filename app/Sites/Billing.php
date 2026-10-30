@@ -5,7 +5,9 @@ namespace App\Sites;
 use App\Models\Owner;
 use App\Models\Site;
 use Illuminate\Support\Carbon;
-use Stripe\Exception\CardException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
 /**
@@ -16,9 +18,6 @@ use Stripe\StripeClient;
  */
 class Billing
 {
-    /** How many payment references a site remembers, so a redelivered webhook cannot pay twice. */
-    private const int MAX_REFERENCES = 50;
-
     protected ?StripeClient $stripe = null;
 
     /**
@@ -82,11 +81,18 @@ class Billing
      */
     public function extendWithSavedCard(Site $site, Owner $owner): bool
     {
+        if (! config('services.stripe.enabled')) {
+            return false;
+        }
+
         if ($owner->stripe_customer_id === null || $owner->stripe_payment_method_id === null) {
             return false;
         }
 
         try {
+            // The idempotency key collapses a double-click (or a retry after a
+            // timeout) in the same minute into one charge; a genuine second
+            // extension the next minute is a new, intended charge.
             $intent = $this->client()->paymentIntents->create([
                 'amount' => config('plans.day_pass.price'),
                 'currency' => 'usd',
@@ -95,8 +101,10 @@ class Billing
                 'off_session' => true,
                 'confirm' => true,
                 'metadata' => ['site_id' => (string) $site->id, 'kind' => 'day'],
-            ]);
-        } catch (CardException) {
+            ], ['idempotency_key' => 'extend:'.$site->id.':'.now()->format('YmdHi')]);
+        } catch (ApiErrorException) {
+            // Any Stripe error (declined card, connection, rate limit, detached
+            // method) means no charge to credit — send the owner to Checkout.
             return false;
         }
 
@@ -122,12 +130,32 @@ class Billing
             return;
         }
 
+        // Already applied (a redelivery): skip before any Stripe call or credit.
+        if (DB::table('payments')->where('reference', 'cs:'.$session['id'])->exists()) {
+            return;
+        }
+
         $owner = $site->owner;
 
         if (($session['mode'] ?? null) === 'subscription') {
-            $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $session): void {
+            $incoming = $session['subscription'] ?? null;
+            $existing = $site->settings['stripe_subscription_id'] ?? null;
+
+            // A race (two open Subscribe tabs) can create a second subscription.
+            // Keep the first, cancel the duplicate so it stops billing, and do
+            // not credit or overwrite from it.
+            if (! empty($existing) && ! empty($incoming) && $existing !== $incoming) {
+                $this->cancelSubscriptionQuietly($incoming);
+                Log::warning('Cancelled a duplicate subscription for a site', [
+                    'site_id' => $site->id, 'kept' => $existing, 'cancelled' => $incoming,
+                ]);
+
+                return;
+            }
+
+            $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $incoming): void {
                 $this->addMonths($site, 1);
-                $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => $session['subscription'] ?? null]]);
+                $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => $incoming]]);
             });
 
             return;
@@ -135,12 +163,19 @@ class Billing
 
         $intentId = $session['payment_intent'] ?? null;
 
-        $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $owner, $intentId): void {
+        // Fetch the saved card id BEFORE recordPayment: no Stripe network call
+        // belongs inside its DB transaction. If this throws, the webhook 500s
+        // and Stripe retries — nothing was credited yet, so the retry credits
+        // exactly once.
+        $paymentMethod = $intentId !== null
+            ? $this->client()->paymentIntents->retrieve($intentId)->payment_method
+            : null;
+
+        $this->recordPayment($site, 'cs:'.$session['id'], function () use ($site, $owner, $paymentMethod): void {
             $this->addDays($site, config('plans.day_pass.days'));
 
-            if ($intentId !== null) {
-                $intent = $this->client()->paymentIntents->retrieve($intentId);
-                $owner->update(['stripe_payment_method_id' => $intent->payment_method]);
+            if ($paymentMethod !== null && $owner !== null) {
+                $owner->update(['stripe_payment_method_id' => $paymentMethod]);
             }
         });
     }
@@ -153,11 +188,24 @@ class Billing
      */
     public function handleInvoicePaid(array $invoice): void
     {
-        if (($invoice['billing_reason'] ?? null) === 'subscription_create') {
+        // Only a regular renewal cycle adds a month. The first invoice is
+        // covered by Checkout (subscription_create), and every other reason
+        // (updates, manual, thresholds) must not credit time.
+        if (($invoice['billing_reason'] ?? null) !== 'subscription_cycle') {
             return;
         }
 
-        $site = Site::query()->where('settings->stripe_subscription_id', $invoice['subscription'] ?? null)->first();
+        // The subscription id moved under parent.subscription_details on newer
+        // Stripe API versions; read either, and never match on a null (which
+        // would become IS NULL and hit every subscription-less site).
+        $subscriptionId = $invoice['subscription']
+            ?? ($invoice['parent']['subscription_details']['subscription'] ?? null);
+
+        if (empty($subscriptionId)) {
+            return;
+        }
+
+        $site = Site::query()->where('settings->stripe_subscription_id', $subscriptionId)->first();
 
         if ($site === null) {
             return;
@@ -174,10 +222,34 @@ class Billing
      */
     public function handleSubscriptionDeleted(array $subscription): void
     {
-        $site = Site::query()->where('settings->stripe_subscription_id', $subscription['id'] ?? null)->first();
+        $subscriptionId = $subscription['id'] ?? null;
 
-        if ($site !== null) {
-            $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => null]]);
+        if (empty($subscriptionId)) {
+            return;
+        }
+
+        DB::transaction(function () use ($subscriptionId): void {
+            $site = Site::query()->where('settings->stripe_subscription_id', $subscriptionId)->lockForUpdate()->first();
+
+            if ($site !== null) {
+                $site->update(['settings' => [...$site->settings, 'stripe_subscription_id' => null]]);
+            }
+        });
+    }
+
+    /**
+     * Cancel a subscription, ignoring a Stripe error (already gone / unreachable).
+     */
+    protected function cancelSubscriptionQuietly(string $subscriptionId): void
+    {
+        if (! config('services.stripe.enabled')) {
+            return;
+        }
+
+        try {
+            $this->client()->subscriptions->cancel($subscriptionId);
+        } catch (ApiErrorException) {
+            // The caller logs the duplicate; nothing more to do here.
         }
     }
 
@@ -187,20 +259,34 @@ class Billing
      */
     protected function recordPayment(Site $site, string $reference, callable $apply): bool
     {
-        $seen = $site->settings['payment_refs'] ?? [];
+        return DB::transaction(function () use ($site, $reference, $apply): bool {
+            // Take the site row lock FIRST — before the payments insert, whose
+            // FK also locks the site — so concurrent webhooks for this site
+            // acquire locks in the same order and cannot deadlock on Postgres.
+            Site::query()->whereKey($site->id)->lockForUpdate()->first();
 
-        if (in_array($reference, $seen, true)) {
-            return false;
-        }
+            // INSERT ... ON CONFLICT DO NOTHING: a redelivered or concurrent
+            // webhook that re-uses the reference inserts nothing and is skipped.
+            // insertOrIgnore (vs catching a unique violation) does not abort the
+            // surrounding transaction on Postgres.
+            $inserted = DB::table('payments')->insertOrIgnore([
+                'site_id' => $site->id,
+                'reference' => $reference,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        $apply();
+            if ($inserted === 0) {
+                return false;
+            }
 
-        $site->refresh();
-        $site->update([
-            'settings' => [...$site->settings, 'payment_refs' => array_slice([...$seen, $reference], -self::MAX_REFERENCES)],
-        ]);
+            // Read the current paid-through under the lock before the math runs.
+            $site->refresh();
 
-        return true;
+            $apply();
+
+            return true;
+        });
     }
 
     /**
@@ -215,7 +301,8 @@ class Billing
 
     protected function addMonths(Site $site, int $months): void
     {
-        $this->extend($site, fn (Carbon $from) => $from->addMonths($months));
+        // No overflow: a month added to Jan 31 lands on Feb 28/29, not Mar 3.
+        $this->extend($site, fn (Carbon $from) => $from->addMonthsNoOverflow($months));
     }
 
     protected function extend(Site $site, callable $move): void
@@ -229,6 +316,24 @@ class Billing
         }
 
         $site->update($attributes);
+    }
+
+    /**
+     * A Stripe Billing Portal session so the owner can update their card or
+     * cancel the monthly plan themselves. Null when there is no customer yet.
+     */
+    public function billingPortalUrl(Owner $owner, string $returnUrl): ?string
+    {
+        if ($owner->stripe_customer_id === null) {
+            return null;
+        }
+
+        $session = $this->client()->billingPortal->sessions->create([
+            'customer' => $owner->stripe_customer_id,
+            'return_url' => $returnUrl,
+        ]);
+
+        return (string) $session->url;
     }
 
     protected function customerFor(Owner $owner): string
