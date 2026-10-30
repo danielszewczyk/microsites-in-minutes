@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="{{ $isDraft ? 'noindex, nofollow' : 'index, follow' }}">
+    @if ($isDraft)
+        {{-- Tints the phone's status bar to match the preview bar below it. --}}
+        <meta name="theme-color" content="#0b2d4f">
+    @endif
     <title>{{ $content['meta']['title'] ?? $content['hero']['headline'] }}</title>
     <meta name="description" content="{{ $content['meta']['description'] ?? '' }}">
     <link rel="canonical" href="{{ $site->url() }}">
@@ -96,14 +100,14 @@
         .qr svg { display: block; width: 150px; height: 150px; margin: 0 auto; }
         .qr .close { position: absolute; top: 6px; right: 8px; border: 0; background: none; font-size: 1.2rem; line-height: 1; color: #57534e; cursor: pointer; }
         @media (max-width: 820px) { .qr { display: none; } }
-        /* Draft notice, styled like Stripe's sandbox banner: full-bleed bar with a dark
-           shoulder below the text, label pinned left, note centred. The content below
-           tucks up into the shoulder with rounded top corners. */
-        .preview-bar { position: relative; z-index: 1; background: #0b2d4f; color: #fff; padding: 12px 24px 32px; font-size: 0.95rem; text-align: center; }
+        /* Draft notice, styled like Stripe's sandbox banner: a navy bar pinned to the top
+           of the viewport, label left, note centred. Its bottom edge carries a paper "lip"
+           with rounded top corners, so the content scrolling underneath always reads as a
+           rounded panel tucked into the navy — the rounding never scrolls away. */
+        .preview-bar { position: sticky; top: 0; z-index: 10; background: #0b2d4f; color: #fff; padding: 12px 24px 32px; font-size: 0.95rem; text-align: center; }
+        .preview-bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 22px; background: var(--paper); border-radius: 22px 22px 0 0; }
         .preview-bar strong { position: absolute; left: 24px; top: 14px; font-size: 1.05rem; }
         .preview-toggle, .preview-info { display: none; }
-        /* Paper content pulled up into the bar's navy shoulder, so its rounded top sits on navy. */
-        .under-preview { position: relative; z-index: 2; margin-top: -22px; border-radius: 22px 22px 0 0; overflow: hidden; background: var(--paper); }
         @media (max-width: 640px) {
             /* Collapse to just "Preview" + an (i) icon; the note expands on tap (pure CSS). */
             .preview-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; text-align: left; }
@@ -125,7 +129,7 @@
     @endif
     @php($hasBanner = $banners['desktop'] || $banners['mobile'])
     @php($overlay = $hasBanner && $site->heroOverlay())
-    <div class="hero-stack{{ $overlay ? ' overlay' : '' }}{{ $isDraft ? ' under-preview' : '' }}">
+    <div class="hero-stack{{ $overlay ? ' overlay' : '' }}">
     @if ($hasBanner)
         <div class="banner">
             <picture>
