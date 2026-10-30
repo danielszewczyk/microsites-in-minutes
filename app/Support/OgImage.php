@@ -197,8 +197,9 @@ class OgImage
         $regular = resource_path('fonts/DejaVuSans.ttf');
 
         $business = (string) ($site->inputs['business_name'] ?? '');
-        $headline = (string) ($site->content['hero']['headline'] ?? $business);
-        $kicker = (string) ($site->content['hero']['kicker'] ?? '');
+        $content = $site->renderedContent();
+        $headline = (string) ($content['hero']['headline'] ?? $business);
+        $kicker = (string) ($content['hero']['kicker'] ?? '');
 
         imagettftext($canvas, 30, 0, 110, 150, $onAccent, $regular, self::fit($business, 36));
 

@@ -210,7 +210,7 @@ class MicrositeController extends Controller
         $site = Site::query()->where('slug', $slug)->firstOrFail();
 
         $html = view('microsite.embed', [
-            'content' => $site->content,
+            'content' => $site->renderedContent(),
             'accent' => $site->accent(),
             'requiresEmailCode' => $site->requiresEmailCode(),
             'collectsDob' => $site->collectsDateOfBirth(),
@@ -233,7 +233,7 @@ class MicrositeController extends Controller
 
         return view('microsite.rules', [
             'site' => $site,
-            'content' => $site->content,
+            'content' => $site->renderedContent(),
             'rules' => $site->content['rules'],
             'accent' => $site->accent(),
         ]);
@@ -646,7 +646,7 @@ class MicrositeController extends Controller
     {
         return [
             'site' => $site,
-            'content' => $site->content,
+            'content' => $site->renderedContent(),
             'accent' => $site->accent(),
             'hero' => $site->hero(),
             'ga4' => $site->ga4Id(),

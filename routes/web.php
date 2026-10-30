@@ -152,6 +152,14 @@ Route::prefix('s/{slug}')->where(['slug' => '[a-z0-9-]{1,72}'])->group(function 
     Route::post('/manage/regenerate', [SiteManageController::class, 'regenerate'])
         ->middleware('throttle:30,1,microsite-regenerate')
         ->name('microsite.regenerate');
+    // Inline copy edits from the draft preview: save one field, or reset it to
+    // the generated text. JSON in, JSON out; the manage cookie authorises.
+    Route::patch('/manage/content', [SiteManageController::class, 'updateContent'])
+        ->middleware('throttle:60,1,microsite-content')
+        ->name('microsite.content.update');
+    Route::delete('/manage/content', [SiteManageController::class, 'resetContent'])
+        ->middleware('throttle:60,1,microsite-content')
+        ->name('microsite.content.reset');
     Route::post('/manage/billing/{plan}', [SiteManageController::class, 'checkout'])
         ->whereIn('plan', ['day', 'monthly'])
         ->middleware('throttle:20,1,microsite-billing')

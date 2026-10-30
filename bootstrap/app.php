@@ -25,13 +25,17 @@ return Application::configure(basePath: dirname(__DIR__))
          * The public entry form posts with fetch and is CSRF-exempt: a public
          * microsite is fully cacheable and carries no session to protect. It is
          * guarded by a honeypot field, a per-IP rate limit and strict
-         * validation instead.
+         * validation instead. The owner's inline copy edits post from the same
+         * cached page, so they cannot carry a token either; they are guarded by
+         * the HttpOnly manage cookie (SameSite=Lax) and by requiring a JSON
+         * body, which a cross-site form or simple request cannot send.
          */
         $middleware->validateCsrfTokens(except: [
             's/*/enter',
             's/*/send-code',
             's/*/ping',
             's/*/track',
+            's/*/manage/content',
             'stripe/webhook',
         ]);
 

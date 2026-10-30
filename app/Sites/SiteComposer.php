@@ -78,7 +78,9 @@ class SiteComposer
 
     /**
      * Regenerate a site in place from edited inputs: same slug, same link, same
-     * manage token. An open page refreshes itself to the new version.
+     * manage token. An open page refreshes itself to the new version. Only the
+     * generated layer is replaced: the owner's inline copy edits
+     * (content_overrides, see CopyEdits) are untouched and stay on top.
      *
      * @param  array<string, mixed>  $input
      */
