@@ -156,27 +156,36 @@
             .preview-edit { display: inline-flex; align-items: center; background: #fff; color: #0b2d4f; font-family: inherit; font-weight: 600; font-size: 0.85rem; line-height: 1; padding: 8px 14px; border: 0; border-radius: 999px; cursor: pointer; }
             .preview-edit:hover { background: #e6edf5; }
             body.mim-editing .preview-edit { background: #fbbf24; color: #1c1917; }
+            /* The fixed QR box would sit over the editor's buttons; the owner is editing, not sharing. */
+            body.mim-editing .qr { display: none; }
             body.mim-editing [data-edit] { cursor: text; outline: 2px dashed rgba(11,45,79,.45); outline-offset: 4px; border-radius: 4px; transition: outline-color .15s, background-color .15s; }
             body.mim-editing .overlay [data-edit] { outline-color: rgba(255,255,255,.65); }
             body.mim-editing [data-edit]:hover, body.mim-editing [data-edit].mim-open { outline-style: solid; outline-color: #0b2d4f; background-color: rgba(11,45,79,.06); }
             body.mim-editing .overlay [data-edit]:hover, body.mim-editing .overlay [data-edit].mim-open { outline-color: #fff; background-color: rgba(255,255,255,.12); }
             [data-edit].mim-saved { animation: mim-saved 1.2s ease-out; }
             @keyframes mim-saved { 0% { background-color: rgba(251,191,36,.55); } 100% { background-color: transparent; } }
-            .mim-editor { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .25s ease; }
+            /* The editor is a navy band that splits the page open beneath the clicked
+               text: it sits after the section's full-width row, so everything below
+               slides down edge to edge, and the inset shadows make the two halves of the
+               page read as lifted above a surface underneath. */
+            .mim-editor { position: relative; z-index: 1; display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s cubic-bezier(.2,.8,.2,1); }
             .mim-editor.open { grid-template-rows: 1fr; }
-            .mim-editor > div { overflow: hidden; min-height: 0; }
-            .mim-editor .pane { margin: 12px 0 8px; padding: 14px; max-width: 640px; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid #0b2d4f; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.12); font: 400 1rem/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: normal; text-transform: none; text-align: left; }
-            .mim-editor label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
-            .mim-editor textarea { display: block; width: 100%; min-height: 72px; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); resize: vertical; }
-            .mim-editor textarea:focus { outline: 2px solid #0b2d4f; outline-offset: 1px; }
-            .mim-editor .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-            .mim-editor .mim-btn { font-family: inherit; font-weight: 600; font-size: 0.9rem; line-height: 1; padding: 10px 16px; border-radius: 999px; border: 1px solid #0b2d4f; background: #0b2d4f; color: #fff; cursor: pointer; }
-            .mim-editor .mim-btn.alt { background: transparent; color: var(--ink); border-color: var(--line); }
-            .mim-editor .mim-btn.reset { background: transparent; color: #0b2d4f; border-color: transparent; text-decoration: underline; padding-left: 4px; padding-right: 4px; }
+            /* The clone that shows the lower half of a cut row: inert, except that its
+               editable text still opens the real element's editor. */
+            .mim-clone { position: relative; z-index: 0; pointer-events: none; }
+            .mim-clone [data-edit] { pointer-events: auto; }
+            .mim-editor > div { overflow: hidden; min-height: 0; background: #0b2d4f; color: #fff; box-shadow: inset 0 20px 24px -16px rgba(0,0,0,.65), inset 0 -20px 24px -16px rgba(0,0,0,.65); }
+            .mim-editor .pane { max-width: 980px; margin: 0 auto; padding: 36px 20px 32px; font: 400 1rem/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: normal; text-transform: none; text-align: left; color: #fff; }
+            .mim-editor label { display: block; font-size: 0.74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.7); margin: 0 0 10px; }
+            .mim-editor textarea { display: block; width: 100%; min-height: 96px; font: inherit; font-size: 1.05rem; padding: 14px 16px; border: 1px solid rgba(255,255,255,.28); border-radius: 10px; background: rgba(255,255,255,.08); color: #fff; resize: vertical; }
+            .mim-editor textarea:focus { outline: 2px solid #fbbf24; outline-offset: 2px; border-color: transparent; }
+            .mim-editor .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+            .mim-editor .mim-btn { font-family: inherit; font-weight: 600; font-size: 0.9rem; line-height: 1; padding: 11px 18px; border-radius: 999px; border: 1px solid #fff; background: #fff; color: #0b2d4f; cursor: pointer; }
+            .mim-editor .mim-btn.alt { background: transparent; color: #fff; border-color: rgba(255,255,255,.5); }
+            .mim-editor .mim-btn.reset { background: transparent; color: rgba(255,255,255,.85); border-color: transparent; text-decoration: underline; padding-left: 4px; padding-right: 4px; }
             .mim-editor .mim-btn:disabled { opacity: .55; cursor: default; }
-            .mim-editor .count { margin-left: auto; font-size: 0.8rem; color: var(--muted); }
-            .mim-editor .err { margin: 8px 0 0; font-size: 0.85rem; color: #b91c1c; }
-            @media (prefers-color-scheme: dark) { .mim-editor .pane { border-left-color: #93c5fd; } .mim-editor .mim-btn.reset { color: #93c5fd; } }
+            .mim-editor .count { margin-left: auto; font-size: 0.8rem; color: rgba(255,255,255,.6); }
+            .mim-editor .err { margin: 10px 0 0; font-size: 0.85rem; color: #fecaca; }
         </style>
         <script>
             fetch({!! json_encode(route('microsite.manage.check', $site->slug, absolute: false), JSON_UNESCAPED_SLASHES) !!}, { credentials: 'same-origin', cache: 'no-store' })
@@ -706,14 +715,36 @@
                 };
                 const all = (path) => document.querySelectorAll('[data-edit="' + path + '"]');
 
-                const close = () => {
+                let closing = null; /* a close still animating out: { done } */
+
+                const close = (now = false) => {
                     if (!open) { return; }
-                    const { el, box } = open;
+                    const { el, box, row, clone, cut } = open;
+                    /* Saving can change the row's height (more lines); re-measure the cut
+                       so the halves still match while the band animates away. */
+                    if (cut) { cut(); }
                     open = null;
                     el.classList.remove('mim-open');
                     box.classList.remove('open');
-                    box.addEventListener('transitionend', () => box.remove(), { once: true });
-                    setTimeout(() => box.remove(), 400);
+                    /* The two halves stay cut while the band closes, so the lower half
+                       slides back up with it; then the row is made whole again — unless
+                       a newer editor has already cut the same row, which keeps its own cut. */
+                    /* Runs once, whichever fires first: the transition end, the timer, or
+                       the next editor finishing this close early — a stale timer must never
+                       undo a later editor's cut. */
+                    let fired = false;
+                    const done = () => {
+                        if (fired) { return; }
+                        fired = true;
+                        if (closing && closing.done === done) { closing = null; }
+                        box.remove();
+                        if (clone) { clone.remove(); }
+                        if (row && !(open && open.row === row)) { row.style.clipPath = ''; row.style.marginBottom = ''; }
+                    };
+                    if (now) { done(); return; }
+                    closing = { done };
+                    box.addEventListener('transitionend', done, { once: true });
+                    setTimeout(done, 450);
                 };
 
                 const send = async (method, path, text) => {
@@ -746,7 +777,11 @@
                 };
 
                 const openFor = (el) => {
-                    close();
+                    /* Any editor still animating out, or still open, is torn down at once so
+                       the row is whole before it is measured and cloned again. */
+                    if (closing) { closing.done(); }
+                    close(true);
+                    if (!el.isConnected) { return; } /* a clone node that the teardown just removed */
                     const path = el.dataset.edit;
                     const field = fieldFor(path);
                     const box = document.createElement('div');
@@ -792,14 +827,48 @@
                         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); commit(); }
                     });
 
-                    /* A list item keeps its panel inside itself; everything else gets it
-                       as the next sibling, so the panel pushes the following content down. */
-                    if (el.tagName === 'LI') { el.appendChild(box); } else { el.insertAdjacentElement('afterend', box); }
+                    /* Cut the page right under the element. The row it sits in is clipped
+                       to the part above the cut, the band goes in, and an inert clone of
+                       the row shows the part below — so the whole page, art and all, tears
+                       open along that line and everything beneath slides down. */
+                    const row = el.closest('.hero-stack.overlay') || el.closest('.wrap') || el.parentElement;
+                    const clone = row.cloneNode(true);
+                    clone.classList.add('mim-clone');
+                    clone.setAttribute('aria-hidden', 'true');
+                    clone.mimRow = row; /* so a click on the clone can find the real row, even mid-close */
+                    clone.style.clipPath = ''; clone.style.marginTop = ''; clone.style.marginBottom = '';
+                    clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+                    clone.querySelectorAll('.mim-editor, .mim-clone').forEach((n) => n.remove());
+                    clone.querySelectorAll('.mim-saved').forEach((n) => n.classList.remove('mim-saved'));
+                    /* Hidden from assistive tech and out of the tab order; pointer clicks on
+                       its editable text still forward to the real element. */
+                    clone.querySelectorAll('a, button, input, select, textarea, [tabindex]').forEach((n) => n.setAttribute('tabindex', '-1'));
+                    row.insertAdjacentElement('afterend', box);
+                    box.insertAdjacentElement('afterend', clone);
+                    const cut = () => {
+                        const r = row.getBoundingClientRect(), e = el.getBoundingClientRect();
+                        const at = Math.min(Math.max(e.bottom - r.top + 10, 0), r.height);
+                        const rest = r.height - at;
+                        row.style.clipPath = 'inset(0 0 ' + rest + 'px 0)';
+                        row.style.marginBottom = '-' + rest + 'px';
+                        clone.style.clipPath = 'inset(' + at + 'px 0 0 0)';
+                        clone.style.marginTop = '-' + at + 'px';
+                    };
+                    cut();
                     el.classList.add('mim-open');
-                    open = { el, box, path };
+                    open = { el, box, path, row, clone, cut };
                     requestAnimationFrame(() => box.classList.add('open'));
                     area.focus();
                     area.setSelectionRange(area.value.length, area.value.length);
+                    /* On a phone the row stacks, so the band can open a screen below the
+                       tapped text: once it has expanded, bring the editor into view. */
+                    setTimeout(() => {
+                        const r = area.getBoundingClientRect();
+                        if (r.top < 0 || r.bottom > window.innerHeight) {
+                            const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                            area.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+                        }
+                    }, 420);
                 };
 
                 toggle.addEventListener('click', () => {
@@ -817,13 +886,24 @@
                 window.addEventListener('click', (event) => {
                     if (!editing || !event.target.closest) { return; }
                     if (event.target.closest('.mim-editor')) { return; }
-                    const el = event.target.closest('[data-edit]');
+                    let el = event.target.closest('[data-edit]');
                     if (!el) { return; }
                     event.preventDefault();
                     event.stopPropagation();
+                    const cloneRoot = el.closest('.mim-clone');
+                    if (cloneRoot && cloneRoot.mimRow) {
+                        /* The lower half of a cut row is a clone: edit the real element at
+                           the same position in the original row (a path can appear twice). */
+                        const sel = '[data-edit="' + el.dataset.edit + '"]';
+                        const index = Array.from(cloneRoot.querySelectorAll(sel)).indexOf(el);
+                        el = cloneRoot.mimRow.querySelectorAll(sel)[index] || el;
+                    }
                     if (open && open.el === el) { return; }
                     openFor(el);
                 }, true);
+
+                /* The cut is measured in pixels, so re-measure when the layout changes. */
+                window.addEventListener('resize', () => { if (open && open.cut) { open.cut(); } });
 
                 document.addEventListener('keydown', (event) => {
                     if (event.key === 'Escape' && open) { close(); }
